@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Wargame · Indo-Pacific 2030-2036</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+  /* Page-specific intro section — soft light-grey, easy on the eyes */
+  .hero {
+    position: relative;
+    padding: 36px 32px 32px;
+    margin-bottom: 32px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; left: 0; right: 0; top: 0;
+    height: 4px;
+    background: var(--gradient-accent-2);
+  }
+  .hero::after {
+    content: '';
+    position: absolute; pointer-events: none; inset: 0;
+    background:
+      radial-gradient(640px 280px at 100% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
+      radial-gradient(560px 320px at 0% 100%, color-mix(in srgb, var(--accent-2) 9%, transparent), transparent 70%);
+  }
+  .hero > * { position: relative; z-index: 1; }
+  .hero h1 {
+    font-size: 38px; font-weight: 300; letter-spacing: 1.5px;
+    line-height: 1.15;
+  }
+  .hero h1 strong {
+    font-weight: 700;
+    background: var(--gradient-accent-2);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+  .hero .kicker {
+    display: inline-block;
+    font-size: 10px; letter-spacing: 4px; color: var(--accent);
+    text-transform: uppercase; font-weight: 700;
+    margin-bottom: 14px;
+    padding: 4px 10px;
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 999px;
+  }
+  .hero p.lede {
+    max-width: 760px; margin-top: 18px; color: var(--text2); font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* About-grid uses panel system */
+  .about {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 4px;
+  }
+  @media (max-width: 820px) { .about { grid-template-columns: 1fr; } }
+  .about h2 {
+    font-size: 12px; letter-spacing: 3px; font-weight: 700;
+    margin-bottom: 14px; color: var(--text2);
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .about h2::before {
+    content: '';
+    width: 18px; height: 2px; background: var(--gradient-accent);
+    border-radius: 2px;
+  }
+  .about p { color: var(--text2); font-size: 13px; margin-bottom: 12px; line-height: 1.7; }
+  .about ul { list-style: none; padding: 0; color: var(--text2); font-size: 13px; }
+  .about ul li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--hairline);
+    display: flex; justify-content: space-between; gap: 12px;
+  }
+  .about ul li:last-child { border-bottom: 0; }
+  .about ul li span.k {
+    color: var(--text3); font: 600 10.5px var(--font-mono);
+    letter-spacing: 1.5px; text-transform: uppercase;
+  }
+  .about ul li span.v { color: var(--text); font-weight: 500; }
+  .about .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+</style>
+</head>
+<body class="with-grid">
+<div class="wrap">
+
+<section class="hero">
+  <div class="kicker">Global Wargame · Operations Command</div>
+  <h1>Global <strong>2030 · 2036</strong></h1>
+  <p class="lede">
+    A tabletop wargame engine for DIME-based strategic competition across
+    the Indo-Pacific, Middle East, Africa, South &amp; Central Asia, and
+    Europe with Ukraine. 147 action cards, a deterministic adjudicator,
+    47-actor world model, hot-seat multiplayer, and a live 3D globe with
+    real GSHHS coastlines, political borders and sun-accurate lighting.
+    Pure HTML/CSS/JS — no server, no network, no install.
+  </p>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="val">147</span><span class="lbl">Cards</span></div>
+    <div class="stat"><span class="val">47</span><span class="lbl">Actor Countries</span></div>
+    <div class="stat"><span class="val">5</span><span class="lbl">Regions</span></div>
+    <div class="stat"><span class="val">4</span><span class="lbl">DIME Domains</span></div>
+    <div class="stat"><span class="val">169</span><span class="lbl">Counter Edges</span></div>
+  </div>
+</section>
+
+<div class="sh">Enter the System</div>
+
+<div class="tile-grid">
+  <a class="tile ops" href="index.html">
+    <div class="icon">▣</div>
+    <div class="tile-kicker">Catalogue</div>
+    <div class="tile-title">Operations Center</div>
+    <div class="tile-desc">
+      Browse all 72 action cards with filters by phase, domain, actor
+      and risk. Full-text search. Card-level detail view.
+    </div>
+  </a>
+
+  <a class="tile engine" href="engine.html">
+    <div class="icon">⚔</div>
+    <div class="tile-kicker">Adjudicator · Stats · Play</div>
+    <div class="tile-title">Engine</div>
+    <div class="tile-desc">
+      Score a card, pit it against a counter, or run a 2–4 player
+      hot-seat campaign. Deterministic outcomes with reproducible
+      variance seeded by card IDs + turn.
+    </div>
+  </a>
+
+  <a class="tile globe" href="globe.html" target="_blank" rel="noopener">
+    <div class="icon">🌐</div>
+    <div class="tile-kicker">Live 3D Visualisation</div>
+    <div class="tile-title">Globe View</div>
+    <div class="tile-desc">
+      Orthographic Earth with real coastlines, political borders,
+      axial tilt, live sun position, DIME compass roses per country
+      and attack arcs synchronised to the engine via postMessage.
+    </div>
+  </a>
+
+  <a class="tile globe" href="tactical.html">
+    <div class="icon">⛊</div>
+    <div class="tile-kicker">2-Player Hot-Seat · Hidden Orders</div>
+    <div class="tile-title">Tactical Operations</div>
+    <div class="tile-desc">
+      Deploy a joint force package on the live 3D globe and plot hidden
+      movement/engagement orders each turn. Plans lock in, then resolve
+      simultaneously with fog-of-war detection and deterministic combat.
+    </div>
+  </a>
+
+  <a class="tile builder" href="card-builder.html">
+    <div class="icon">✎</div>
+    <div class="tile-kicker">Authoring</div>
+    <div class="tile-title">Card Builder</div>
+    <div class="tile-desc">
+      Compose new action cards with title, phase, domain, actor, risk,
+      action/effect/counter blocks. Exports a standalone .html ready
+      to import back into the Operations Center.
+    </div>
+  </a>
+
+  <a class="tile ops" href="diagnostics.html">
+    <div class="icon">✓</div>
+    <div class="tile-kicker">System Health</div>
+    <div class="tile-title">Diagnostics</div>
+    <div class="tile-desc">
+      Verify all game files are present, count cards by phase / domain /
+      region, audit counter-link integrity, and surface any broken edges.
+      Useful after a USB transfer to confirm a clean install.
+    </div>
+  </a>
+</div>
+
+<div class="sh">About the Project</div>
+
+<div class="about">
+  <section class="panel panel-accent-D">
+    <h2>Design</h2>
+    <p>
+      Players represent strategic actors pressing objectives across four
+      DIME domains — <strong>D</strong>iplomatic, <strong>I</strong>nformational,
+      <strong>M</strong>ilitary, <strong>E</strong>conomic — through three
+      phases: Competition, Conflict, and Crisis.
+    </p>
+    <p>
+      Each card carries a risk score (1–10), primary actors and a
+      keyword-flavoured DIME vector. The adjudicator computes net effect
+      from attacker posture vs defender posture, applies a phase
+      multiplier, and resolves to BEST, PARTIAL or BACKFIRE. The world
+      state updates — country DIME baselines, GDP, stockpiles, morale —
+      and the global commodity market nudges in response.
+    </p>
+    <div class="chips">
+      <span class="chip dime-D">DIPLOMATIC</span>
+      <span class="chip dime-I">INFORMATIONAL</span>
+      <span class="chip dime-M">MILITARY</span>
+      <span class="chip dime-E">ECONOMIC</span>
+      <span class="chip ph-COM">COMPETITION</span>
+      <span class="chip ph-CON">CONFLICT</span>
+      <span class="chip ph-CRI">CRISIS</span>
+    </div>
+  </section>
+
+  <section class="panel panel-accent-I">
+    <h2>Technical</h2>
+    <ul>
+      <li><span class="k">Runtime</span>     <span class="v">Browser only · no server</span></li>
+      <li><span class="k">Dependencies</span><span class="v">None</span></li>
+      <li><span class="k">Coastlines</span>  <span class="v">GSHHS-h · 1,260 polys</span></li>
+      <li><span class="k">Borders</span>     <span class="v">basemap countries_h · 447 lines</span></li>
+      <li><span class="k">Projection</span>  <span class="v">Orthographic + 23.44° tilt</span></li>
+      <li><span class="k">Lighting</span>    <span class="v">Real subsolar point (by date)</span></li>
+      <li><span class="k">Arcs</span>        <span class="v">Great-circle slerp (80 steps)</span></li>
+      <li><span class="k">Sync</span>        <span class="v">postMessage (engine ⇆ globe)</span></li>
+      <li><span class="k">Bundle size</span> <span class="v">~3.6 MB single file</span></li>
+    </ul>
+  </section>
+</div>
+
+<footer class="page-foot">
+  <div><span class="live"></span>GWO · v2 · Indo-Pacific 2030-2036 — offline engine</div>
+  <div>DIME × COM / CON / CRI · 18 Countries · 72 Cards</div>
+</footer>
+
+</div>
+</body>
+</html>

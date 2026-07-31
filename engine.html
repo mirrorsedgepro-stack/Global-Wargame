@@ -1,0 +1,1916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Wargame · Engine</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+  :root {
+    /* Engine-local short-form domain aliases (resolve via theme.css). */
+    --d: var(--d-D);
+    --i: var(--d-I);
+    --m: var(--d-M);
+    --e: var(--d-E);
+    /* Stronger emphasis line used by engine controls. */
+    --border2: var(--border-strong);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px; letter-spacing: 0.3px; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; }
+  .title { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text2); }
+  .title strong { color: var(--accent); font-weight: 600; }
+  .btn-close { background: var(--bg2); color: var(--text2); border: 1px solid var(--border2);
+    padding: 5px 12px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; font-family: inherit; }
+  .btn-close:hover { border-color: var(--accent); color: var(--accent); }
+
+  nav.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--bg2); }
+  nav.tabs button { background: none; color: var(--text3); border: 0; border-bottom: 2px solid transparent;
+    padding: 12px 22px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; font-family: inherit; font-weight: 600; }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button:hover { color: var(--text); }
+
+  main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+  section.tab { display: none; }
+  section.tab.active { display: block; }
+
+  h2 { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--text2);
+    font-weight: 600; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3);
+    font-weight: 600; margin: 18px 0 10px; }
+  label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); display: block; margin-bottom: 6px; }
+  select, input[type="text"] { background: var(--bg2); color: var(--text); border: 1px solid var(--border2);
+    padding: 8px 10px; font-family: inherit; font-size: 12px; width: 100%; }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+
+  .btn { background: var(--bg2); color: var(--text); border: 1px solid var(--border2);
+    padding: 10px 18px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; font-family: inherit; font-weight: 600; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-hov); color: var(--on-accent); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Adjudicate tab */
+  .adj-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: start; }
+  .adj-col { background: var(--bg2); border: 1px solid var(--border); padding: 16px; }
+  .adj-vs { font-size: 24px; color: var(--accent); text-align: center; padding-top: 80px; font-weight: 300; }
+  .adj-preview { margin-top: 12px; font-size: 11px; color: var(--text2); line-height: 1.5; }
+  .adj-preview .pv-title { color: var(--text); font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .adj-preview .pv-meta { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; font-size: 9px; letter-spacing: 1px; }
+  .adj-preview .pv-meta span { padding: 2px 6px; border: 1px solid var(--border2); text-transform: uppercase; }
+  .adj-preview .pv-summary { margin-top: 6px; max-height: 5em; overflow: hidden; }
+  .adj-preview .pv-dime { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+  .dime-cell { text-align: center; padding: 4px; border: 1px solid var(--border2); }
+  .dime-cell.d { border-color: var(--d); }
+  .dime-cell.i { border-color: var(--i); }
+  .dime-cell.m { border-color: var(--m); }
+  .dime-cell.e { border-color: var(--e); }
+  .dime-cell .dk { font-size: 8px; letter-spacing: 1px; color: var(--text3); }
+  .dime-cell .dv { font-weight: 600; font-size: 14px; margin-top: 2px; }
+
+  .result-panel { margin-top: 22px; background: var(--bg2); border: 1px solid var(--border); padding: 20px; }
+  .result-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .result-outcome { font-size: 22px; font-weight: 600; letter-spacing: 2px; }
+  .result-outcome.BEST { color: var(--good); }
+  .result-outcome.PARTIAL { color: var(--warn); }
+  .result-outcome.BACKFIRE { color: var(--bad); }
+  .result-net { font-size: 32px; font-weight: 300; color: var(--accent); }
+  .result-net .unit { font-size: 11px; color: var(--text3); letter-spacing: 2px; }
+  .breakdown { margin-top: 12px; font-size: 11px; }
+  .breakdown-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .breakdown-row.total { font-weight: 600; border-top: 1px solid var(--border2); border-bottom: none; padding-top: 10px; margin-top: 6px; }
+  .breakdown-label { color: var(--text2); }
+  .breakdown-value { font-family: 'Courier New', monospace; color: var(--text); }
+  .breakdown-value.pos { color: var(--good); }
+  .breakdown-value.neg { color: var(--bad); }
+
+  .outcome-text { margin-top: 14px; padding: 12px; background: var(--bg3); border-left: 2px solid var(--accent); line-height: 1.6; color: var(--text2); font-size: 12px; }
+
+  /* Statistics tab */
+  .countries-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .country-card { background: var(--bg2); border: 1px solid var(--border); padding: 14px; }
+  .country-card h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 1px; color: var(--text); display: flex; justify-content: space-between; align-items: baseline; }
+  .fav-score { font-size: 18px; font-weight: 300; color: var(--accent); }
+  .bar-row { display: grid; grid-template-columns: 22px 1fr 42px; gap: 8px; align-items: center; margin: 4px 0; font-size: 10px; }
+  .bar-label { letter-spacing: 1px; color: var(--text3); text-transform: uppercase; font-weight: 600; }
+  .bar-track { height: 6px; background: var(--bg3); border: 1px solid var(--border); position: relative; }
+  .bar-fill { height: 100%; background: var(--accent); transition: width 0.3s; }
+  .bar-fill.d { background: var(--d); }
+  .bar-fill.i { background: var(--i); }
+  .bar-fill.m { background: var(--m); }
+  .bar-fill.e { background: var(--e); }
+  .bar-value { font-family: 'Courier New', monospace; color: var(--text2); text-align: right; }
+  .stockpile-row { display: flex; justify-content: space-between; font-size: 10px; margin-top: 4px; color: var(--text3); }
+  .stockpile-row .sp-v { color: var(--text); font-family: 'Courier New', monospace; }
+
+  .market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .market-card { background: var(--bg2); border: 1px solid var(--border); padding: 12px; }
+  .market-card .mk-name { font-size: 10px; letter-spacing: 2px; color: var(--text3); text-transform: uppercase; }
+  .market-card .mk-price { font-size: 24px; font-weight: 300; color: var(--accent); margin-top: 4px; }
+  .market-card .mk-delta { font-size: 11px; margin-top: 2px; font-family: 'Courier New', monospace; }
+  .mk-delta.pos { color: var(--good); }
+  .mk-delta.neg { color: var(--bad); }
+
+  /* Play Game tab */
+  .setup-slot { display: grid; grid-template-columns: 40px 1fr 1fr 60px; gap: 10px; align-items: center;
+    background: var(--bg2); border: 1px solid var(--border); padding: 10px; margin-bottom: 8px; }
+  .setup-slot .pn { font-size: 11px; color: var(--text3); letter-spacing: 2px; text-transform: uppercase; }
+  .setup-actions { margin-top: 14px; display: flex; gap: 10px; }
+  .btn-remove { background: none; color: var(--bad); border: 1px solid var(--border2); padding: 6px; cursor: pointer; font-family: inherit; font-size: 10px; }
+  .btn-remove:hover { border-color: var(--bad); }
+
+  .game-top { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  .turn-banner { background: var(--bg2); border: 1px solid var(--border); padding: 14px 18px; }
+  .turn-banner .tb-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); }
+  .turn-banner .tb-player { font-size: 22px; font-weight: 300; color: var(--accent); margin: 4px 0; }
+  .turn-banner .tb-country { font-size: 11px; letter-spacing: 1px; color: var(--text2); }
+  .turn-banner .tb-turn { font-size: 10px; color: var(--text3); margin-top: 6px; letter-spacing: 1px; }
+
+  .score-summary { background: var(--bg2); border: 1px solid var(--border); padding: 12px; }
+  .score-summary .sc-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 3px 0; font-size: 11px; }
+  .score-summary .sc-row.lead { color: var(--accent); font-weight: 600; }
+  .score-summary .sc-name { color: var(--text2); }
+  .score-summary .sc-val { font-family: 'Courier New', monospace; color: var(--text); }
+
+  .hand { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin-top: 16px; }
+  .hand-card { background: var(--bg2); border: 1px solid var(--border); padding: 12px; cursor: pointer; transition: all 0.15s; position: relative; }
+  .hand-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .hand-card.selected { border-color: var(--accent); background: var(--bg3); }
+  .hand-card .hc-id { font-size: 9px; letter-spacing: 2px; color: var(--text3); font-family: 'Courier New', monospace; }
+  .hand-card .hc-title { font-size: 13px; color: var(--text); margin: 4px 0 6px; font-weight: 500; line-height: 1.3; }
+  .hand-card .hc-meta { display: flex; gap: 4px; font-size: 8px; letter-spacing: 1px; }
+  .hand-card .hc-meta span { padding: 1px 5px; border: 1px solid var(--border2); text-transform: uppercase; color: var(--text3); }
+  .hand-card .hc-cost { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; background: var(--bg3); border: 1px solid var(--accent); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--accent); font-weight: 600; }
+
+  .log { margin-top: 18px; max-height: 260px; overflow-y: auto; background: var(--bg2); border: 1px solid var(--border); padding: 10px; font-size: 11px; line-height: 1.6; }
+  .log-entry { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry .le-turn { color: var(--text3); font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 1px; }
+  .log-entry .le-player { color: var(--accent); font-weight: 600; }
+  .log-entry .le-outcome { font-weight: 600; }
+  .log-entry .le-outcome.BEST { color: var(--good); }
+  .log-entry .le-outcome.PARTIAL { color: var(--warn); }
+  .log-entry .le-outcome.BACKFIRE { color: var(--bad); }
+
+  .empty-state { padding: 40px; text-align: center; color: var(--text3); font-size: 12px; letter-spacing: 1px; }
+
+  /* Counter-prompt modal */
+  .counter-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .counter-modal[hidden] { display: none; }
+  .counter-modal-inner { background: var(--bg2); border: 1px solid var(--accent); padding: 24px; max-width: 860px; width: 95%; max-height: 86vh; overflow-y: auto; }
+  .counter-modal h3 { color: var(--accent); margin: 0 0 8px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; }
+  .counter-modal .cm-msg { color: var(--text2); font-size: 12px; line-height: 1.6; margin: 0 0 14px; }
+  .counter-modal .cm-msg strong { color: var(--text); }
+  .counter-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .counter-option {
+    background: var(--bg3); border: 1px solid var(--border2); padding: 12px 12px 38px;
+    cursor: pointer; transition: all 0.15s; position: relative;
+    -webkit-tap-highlight-color: rgba(96,165,250,0.25);
+  }
+  .counter-option:hover {
+    border-color: var(--accent); transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(96,165,250,0.18);
+  }
+  .counter-option:active { transform: translateY(0); }
+  .counter-option .co-owner { font-size: 9px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+  .counter-option .co-id { font-size: 9px; letter-spacing: 1px; color: var(--text3); font-family: 'Courier New', monospace; margin-top: 2px; }
+  .counter-option .co-title { font-size: 13px; color: var(--text); margin: 4px 0 6px; line-height: 1.3; }
+  .counter-option .co-meta { display: flex; gap: 4px; font-size: 8px; letter-spacing: 1px; flex-wrap: wrap; }
+  .counter-option .co-meta span { padding: 1px 5px; border: 1px solid var(--border2); text-transform: uppercase; color: var(--text3); }
+  /* Explicit "play" affordance — strip along the bottom of every counter card */
+  .counter-option .co-play {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 7px 10px;
+    font: 700 10px 'Segoe UI', system-ui, sans-serif;
+    letter-spacing: 2px;
+    text-align: center;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(96,165,250,0.08);
+    border-top: 1px solid var(--border2);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .counter-option:hover .co-play {
+    background: rgba(96,165,250,0.22);
+    color: var(--text);
+    border-top-color: var(--accent);
+  }
+  .counter-modal-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+
+  footer { text-align: center; color: var(--text3); font-size: 9px; letter-spacing: 3px; text-transform: uppercase; padding: 20px; margin-top: 20px; border-top: 1px solid var(--border); }
+
+  /* ---------- Hand-card hover tooltip (full-card peek) ---------- */
+  /* z-index sits BELOW the counter modal (1000) so the modal never gets
+     visually masked by a stale tooltip after a hand-card click. */
+  .card-tooltip {
+    position: fixed;
+    z-index: 900;
+    width: 360px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    background: var(--bg2);
+    border: 1px solid var(--accent);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.65), 0 0 0 1px rgba(96,165,250,0.15);
+    padding: 16px 18px;
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.55;
+    pointer-events: none;            /* never steals hover from the source card */
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+  .card-tooltip.show { opacity: 1; transform: translateY(0); }
+  .card-tooltip[hidden] { display: none; }
+
+  .card-tooltip .ct-id {
+    font: 600 9px 'Courier New', monospace;
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-transform: uppercase;
+  }
+  .card-tooltip .ct-title {
+    font-size: 15px; font-weight: 600; color: var(--text);
+    margin: 4px 0 10px; line-height: 1.3;
+  }
+  .card-tooltip .ct-chips {
+    display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px;
+  }
+  .card-tooltip .ct-chips span {
+    padding: 2px 7px;
+    font: 600 9px 'Courier New', monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+  }
+  .card-tooltip .ct-chips .ph-COM { color: #7c3aed; border-color: #7c3aed; }
+  .card-tooltip .ct-chips .ph-CON { color: #db2777; border-color: #db2777; }
+  .card-tooltip .ct-chips .ph-CRI { color: #dc2626; border-color: #dc2626; }
+  .card-tooltip .ct-chips .dom-D { color: var(--d); border-color: var(--d); }
+  .card-tooltip .ct-chips .dom-I { color: var(--i); border-color: var(--i); }
+  .card-tooltip .ct-chips .dom-M { color: var(--m); border-color: var(--m); }
+  .card-tooltip .ct-chips .dom-E { color: var(--e); border-color: var(--e); }
+  .card-tooltip .ct-chips .risk-LOW      { color: var(--good); border-color: var(--good); }
+  .card-tooltip .ct-chips .risk-MEDIUM   { color: var(--warn); border-color: var(--warn); }
+  .card-tooltip .ct-chips .risk-HIGH     { color: #fb923c;     border-color: #fb923c; }
+  .card-tooltip .ct-chips .risk-CRITICAL { color: var(--bad);  border-color: var(--bad); }
+  .card-tooltip .ct-chips .ct-cost       { color: var(--accent); border-color: var(--accent); }
+
+  .card-tooltip .ct-section-h {
+    font-size: 9px; letter-spacing: 2px; color: var(--text3);
+    text-transform: uppercase; margin: 12px 0 5px;
+  }
+  .card-tooltip .ct-actors {
+    color: var(--text2); font-size: 11px;
+  }
+  .card-tooltip .ct-summary {
+    color: var(--text2); font-size: 12px; line-height: 1.6;
+  }
+  .card-tooltip .ct-dime {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px;
+  }
+  .card-tooltip .ct-dime .dime-cell { padding: 5px 4px; }
+  .card-tooltip .ct-counters {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  .card-tooltip .ct-counters span {
+    font: 600 9px 'Courier New', monospace;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border: 1px dashed var(--border2);
+    color: var(--text2);
+  }
+  .card-tooltip .ct-counters .none { border-style: solid; color: var(--text3); }
+</style>
+</head>
+<body>
+<header>
+  <div class="title"><strong>Global Wargame</strong> · Engine</div>
+  <button class="btn-close" id="btn-close">← Back · Esc</button>
+</header>
+
+<nav class="tabs">
+  <button data-tab="adjudicate" class="active">Adjudicate</button>
+  <button data-tab="stats">Statistics</button>
+  <button data-tab="play">Play Game</button>
+  <button data-tab="rules">Rules</button>
+  <button id="btn-open-globe" style="margin-left:auto;background:var(--bg3);color:var(--accent);border:1px solid var(--accent);padding:8px 16px;margin:6px 16px 6px auto;font-size:10px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;font-family:inherit;font-weight:600;border-bottom:1px solid var(--accent);">◉ Open Globe View</button>
+</nav>
+
+<main>
+
+<!-- ========== ADJUDICATE ========== -->
+<section id="tab-adjudicate" class="tab active">
+  <h2>Card-vs-Card Adjudication</h2>
+  <p style="color:var(--text3);font-size:11px;margin:0 0 16px;line-height:1.6;">
+    Select an attacker and an optional defender. The engine compares DIME effectiveness, counter-card relationships, and actor posture to produce a deterministic outcome.
+  </p>
+
+  <div class="adj-grid">
+    <div class="adj-col">
+      <label>Attacker</label>
+      <select id="adj-attack"></select>
+      <div class="adj-preview" id="adj-attack-preview"></div>
+    </div>
+    <div class="adj-vs">vs</div>
+    <div class="adj-col">
+      <label>Defender (optional)</label>
+      <select id="adj-defend">
+        <option value="">— World State Only —</option>
+      </select>
+      <div class="adj-preview" id="adj-defend-preview"></div>
+    </div>
+  </div>
+
+  <div style="margin-top:18px;display:flex;gap:10px;">
+    <button class="btn primary" id="btn-adjudicate">Adjudicate</button>
+    <button class="btn" id="btn-clear">Clear</button>
+  </div>
+
+  <div id="adj-result"></div>
+</section>
+
+<!-- ========== STATISTICS ========== -->
+<section id="tab-stats" class="tab">
+  <h2>World State — Country Posture</h2>
+  <p style="color:var(--text3);font-size:11px;margin:0 0 16px;line-height:1.6;">
+    Live DIME posture and economic indicators for each major actor.
+    <strong style="color:var(--accent)">Favourability</strong> is a composite of DIME average, GDP health, stockpile security, and morale.
+  </p>
+
+  <div class="countries-grid" id="countries-grid"></div>
+
+  <h3>Global Market</h3>
+  <div class="market-grid" id="market-panel"></div>
+
+  <div style="margin-top:16px;">
+    <button class="btn" id="btn-reset-world">Reset World</button>
+  </div>
+</section>
+
+<!-- ========== PLAY GAME ========== -->
+<section id="tab-play" class="tab">
+  <div id="play-setup">
+    <h2>Game Setup</h2>
+    <p style="color:var(--text3);font-size:11px;margin:0 0 16px;line-height:1.6;">
+      Add 2–4 players, each controlling one actor country. Players take turns (hot-seat). Each turn: draw hand, play one card, see effects.
+    </p>
+    <div id="player-slots"></div>
+    <div class="setup-actions">
+      <button class="btn" id="btn-add-player">+ Add Player</button>
+      <button class="btn primary" id="btn-start" disabled>Start Game</button>
+    </div>
+  </div>
+
+  <div id="play-game" hidden>
+    <div class="game-top">
+      <div class="turn-banner">
+        <div class="tb-label">Current Turn</div>
+        <div class="tb-player" id="gt-player">—</div>
+        <div class="tb-country" id="gt-country">—</div>
+        <div class="tb-turn" id="gt-turn">Turn 1 of 30</div>
+      </div>
+      <div class="score-summary" id="gt-scores"></div>
+    </div>
+
+    <h3>Your Hand — Click a card to play it</h3>
+    <div class="hand" id="gt-hand"></div>
+
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn" id="btn-skip">Skip turn</button>
+      <button class="btn" id="btn-redraw">Redraw hand</button>
+      <button class="btn" id="btn-endgame">End Game</button>
+    </div>
+
+    <h3>Battle Log</h3>
+    <div class="log" id="gt-log"></div>
+  </div>
+
+  <div id="play-end" hidden>
+    <h2>Final Standings</h2>
+    <div id="final-board"></div>
+    <button class="btn primary" id="btn-new-game" style="margin-top:16px;">New Game</button>
+  </div>
+</section>
+
+<!-- ========== RULES ========== -->
+<section id="tab-rules" class="tab">
+  <h2>Game Rules &amp; Reference</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:16px;">
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Overview</h4>
+      <p style="color:var(--text2);line-height:1.6;font-size:12px;">
+        Global Wargame is a strategic card game set in the 2030–2036 Indo-Pacific. Players represent nation-states and play action cards drawn from their country's real strategic options across the <strong>DIME</strong> domains. An adjudication engine resolves each card against the current world state and any defender played in response.
+      </p>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">DIME Framework</h4>
+      <div class="bar-row"><div class="bar-label d" style="color:var(--d)">D</div><div style="color:var(--text2)">Diplomatic — alliances, treaties, summits, UN maneuvering.</div><div></div></div>
+      <div class="bar-row"><div class="bar-label i" style="color:var(--i)">I</div><div style="color:var(--text2)">Informational — cyber, influence ops, intelligence, comms infrastructure.</div><div></div></div>
+      <div class="bar-row"><div class="bar-label m" style="color:var(--m)">M</div><div style="color:var(--text2)">Military — force posture, deployments, strikes, deterrence.</div><div></div></div>
+      <div class="bar-row"><div class="bar-label e" style="color:var(--e)">E</div><div style="color:var(--text2)">Economic — sanctions, trade, currency, supply chains, stockpiles.</div><div></div></div>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Card Anatomy</h4>
+      <ul style="color:var(--text2);line-height:1.7;font-size:12px;padding-left:18px;margin:6px 0;">
+        <li><strong>Phase</strong> · Competition → Conflict → Crisis (stakes rise)</li>
+        <li><strong>Domain</strong> · Primary DIME lane the card operates in</li>
+        <li><strong>Risk</strong> · LOW · MEDIUM · HIGH · CRITICAL (cost &amp; impact scale)</li>
+        <li><strong>Actors</strong> · Nations required to play the card</li>
+        <li><strong>Counter-cards</strong> · Cards that canonically answer this one</li>
+      </ul>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Adjudication Formula</h4>
+      <div style="color:var(--text2);line-height:1.6;font-size:12px;">
+        <div style="margin-bottom:8px;"><strong>1. Attacker base</strong> = RISK_MAG × PHASE_MULT</div>
+        <div style="font-family:monospace;font-size:10px;color:var(--text3);background:var(--bg3);padding:6px;margin:4px 0;">LOW=10 · MED=20 · HIGH=35 · CRI=55<br>COM×1.0 · CON×1.3 · CRI×1.6</div>
+        <div style="margin:6px 0;"><strong>2. Phase bonus</strong> — Conflict +4, Crisis +8</div>
+        <div style="margin:6px 0;"><strong>3. Actor posture</strong> — (DIME avg − 50) × 0.3</div>
+        <div style="margin:6px 0;"><strong>4. Defender value</strong> = base × 0.7, × 1.6 if canonical counter, × 1.15 if same domain</div>
+        <div style="margin:6px 0;"><strong>5. Defender posture</strong> — (DIME avg − 50) × 0.2 (subtracted)</div>
+        <div style="margin:6px 0;"><strong>6. Variance</strong> — deterministic hash of ids+turn, ±5</div>
+      </div>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Outcome Bands</h4>
+      <div class="bar-row"><div class="bar-label" style="color:var(--good)">BEST</div><div style="color:var(--text2)">Net ≥ 30 · Full intended effect</div><div></div></div>
+      <div class="bar-row"><div class="bar-label" style="color:var(--warn)">PART</div><div style="color:var(--text2)">0 ≤ Net &lt; 30 · 40% impact, significant friction</div><div></div></div>
+      <div class="bar-row"><div class="bar-label" style="color:var(--bad)">BACK</div><div style="color:var(--text2)">Net &lt; 0 · Action inverts, 60% damage to actor</div><div></div></div>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">World State &amp; Favourability</h4>
+      <p style="color:var(--text2);line-height:1.6;font-size:12px;">
+        Each country tracks DIME posture (0–100 each), GDP, morale, and stockpiles of rare earths, semiconductors, energy, and grain.
+      </p>
+      <div style="font-family:monospace;font-size:10px;color:var(--accent);background:var(--bg3);padding:8px;margin:6px 0;">
+        Favourability = 0.50 × DIMEavg<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + 0.25 × GDP<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + 0.15 × StockpileAvg<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + 0.10 × Morale
+      </div>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Global Market</h4>
+      <p style="color:var(--text2);line-height:1.6;font-size:12px;">
+        Four commodities track in real time: <strong>Rare Earths</strong>, <strong>Semiconductors</strong>, <strong>Energy</strong>, <strong>Grain</strong>. <strong style="color:var(--accent)">Every card moves the market</strong> — there is no &ldquo;dud&rdquo; play. Movement is a sum of two layers:
+      </p>
+      <ul style="color:var(--text2);line-height:1.6;font-size:12px;padding-left:18px;margin:8px 0;">
+        <li><strong>Layer A — Keyword</strong>: cards that explicitly mention a commodity (rare earth, chip, oil, grain, ASML, OPEC, fabrication, harvest…) get a strong, targeted hit on that commodity.</li>
+        <li><strong>Layer B — Baseline ripple</strong>: every card always nudges all four commodities, weighted by its DIME domain — Economic plays touch everything, Military plays lean on energy/logistics, Information plays lean on semiconductors, Diplomatic plays ripple mildly across the board.</li>
+      </ul>
+      <p style="color:var(--text2);line-height:1.6;font-size:12px;">
+        The <strong>Global Risk Index</strong> rises with Conflict and Crisis plays — high risk amplifies BACKFIRE consequences. End-of-turn: net exporters of a commodity gain GDP when its price rises; net importers feel the squeeze.
+      </p>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Economic Pressure Model</h4>
+      <p style="color:var(--text2);line-height:1.6;font-size:12px;">
+        Each card is classified <strong style="color:var(--bad)">RESTRICTIVE</strong> (markets price in risk → prices rise, target stockpiles fall) or <strong style="color:var(--good)">EXPANSIVE</strong> (markets price in supply → prices ease, actor stockpiles rise). The classifier uses four signals in priority:
+      </p>
+      <ol style="color:var(--text2);line-height:1.7;font-size:12px;padding-left:18px;margin:6px 0;">
+        <li><strong>Meta-tag override</strong> — any <strong style="color:var(--m)">M</strong> domain card → restrictive (military activity is destabilizing regardless of wording). Offensive <strong style="color:var(--i)">I</strong> ops (cyber, hack, disinfo, espionage, breach, theft, prepositioning) → restrictive.</li>
+        <li><strong>Expansive vocabulary</strong> — partnership, accord, summit, mediation, sovereign fund, food security, integration, ceasefire, reset, pathway → expansive.</li>
+        <li><strong>Restrictive vocabulary</strong> — sanction, embargo, exclusion, exercise, drill, strike, militari[sz], ICBM, EMP, blockade, freeze, tariff, trigger, FONOP, mobilization, lockdown, violation → restrictive.</li>
+        <li><strong>Phase fallback</strong> — Competition → expansive · Conflict → restrictive · Crisis → restrictive.</li>
+      </ol>
+      <p style="color:var(--text2);line-height:1.6;font-size:12px;margin-top:6px;">
+        BACKFIRE flips the sign of the move (a botched escalation gives back the priced-in risk premium).
+      </p>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Per-Card Effect Per Turn</h4>
+      <div style="color:var(--text2);line-height:1.6;font-size:12px;">
+        <div style="margin:4px 0;"><strong>Actor DIME</strong> — primary domain shifts ±15% × outcome mult.</div>
+        <div style="margin:4px 0;"><strong>Actor GDP</strong> — BEST +5%·base · PARTIAL +2%·base · BACKFIRE −10%·base.</div>
+        <div style="margin:4px 0;"><strong>Actor morale</strong> — ±4 pts × outcome mult.</div>
+        <div style="margin:4px 0;"><strong>Target GDP/morale</strong> — restrictive plays bruise target by ~4% GDP, −2 morale.</div>
+        <div style="margin:4px 0;"><strong>Global risk</strong> — COM ×0.15 · CON ×0.5 · CRI ×1.0. Diplomatic BEST plays without restrictive language reduce risk.</div>
+        <div style="margin:4px 0;"><strong>Markets &amp; stockpiles</strong> — Layer A + Layer B (see &ldquo;Global Market&rdquo;).</div>
+      </div>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Game Flow</h4>
+      <ol style="color:var(--text2);line-height:1.7;font-size:12px;padding-left:18px;margin:6px 0;">
+        <li>2–4 players each pick a country</li>
+        <li>Draw a 5-card hand filtered to your country</li>
+        <li><strong>Hover any card in your hand</strong> for a full-detail peek (id, summary, DIME profile, canonical counters)</li>
+        <li>On your turn: play one card, or skip, or redraw</li>
+        <li>Other players' hands are scanned — if any holds a canonical counter, a prompt lets them play it or pass</li>
+        <li>Adjudicator resolves · world state updates · log records the action</li>
+        <li>End of turn: market prices snapshot, stockpiles drift, risk decays toward baseline 30</li>
+        <li>Net exporters of a commodity gain GDP when its price rises; net importers feel the squeeze</li>
+        <li><strong>30 turns per player</strong> — long-horizon campaigns; effects compound</li>
+        <li>Winner = highest favourability at end</li>
+      </ol>
+    </div>
+
+    <div class="country-card">
+      <h4 style="color:var(--accent)">Strategy Tips</h4>
+      <ul style="color:var(--text2);line-height:1.7;font-size:12px;padding-left:18px;margin:6px 0;">
+        <li>Early Competition cards are safer — lock in posture before escalating.</li>
+        <li>CRITICAL cards have huge base scores but are easy targets for counters.</li>
+        <li>Favourability composites multiple axes — a weak GDP blunts otherwise strong DIME posture.</li>
+        <li>Stockpile-focused plays (rare earths, semis, energy) have knock-on market effects other cards benefit from.</li>
+        <li>A BACKFIRE is worse than skipping — know when to hold.</li>
+        <li>Over a 30-turn horizon, baseline ripple is cumulative — even subtle plays matter.</li>
+        <li>Net-exporter countries profit from rising prices on their stockpiles — escalate sectors where you're long, ease sectors where you're short.</li>
+        <li>Diplomatic BEST plays calm global risk — useful when your stockpiles are exposed.</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========== HAND-CARD HOVER TOOLTIP ========== -->
+<div class="card-tooltip" id="card-tooltip" hidden></div>
+
+<!-- ========== COUNTER PROMPT MODAL ========== -->
+<div class="counter-modal" id="counter-modal" hidden>
+  <div class="counter-modal-inner">
+    <h3 id="counter-modal-title">Counter Available</h3>
+    <p class="cm-msg" id="counter-modal-msg"></p>
+    <div class="counter-options" id="counter-options"></div>
+    <div class="counter-modal-actions">
+      <button class="btn" id="btn-counter-pass">Pass — let it resolve</button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<footer>Global Wargame · DIME Catalogue 2030–2036 · Indo-Pacific</footer>
+
+<!-- Card data injected at bundle build; sidecar fallback for standalone use -->
+<script id="engine-data" type="application/json">__ENGINE_DATA__</script>
+<script src="engine-data.js" onerror="void 0"></script>
+
+<script>
+// ===========================================================================
+// DATA  —  three-tier load:
+//   1. Inline JSON block (populated by build_bundle.py at bundle time)
+//   2. Sidecar engine-data.js (sets window.__ENGINE_DATA; loaded when the
+//      file is viewed standalone next to engine-data.js)
+//   3. Empty fallback (so the page still runs, just without card data)
+// ===========================================================================
+const ENGINE_DATA = (() => {
+  const raw = document.getElementById('engine-data').textContent;
+  // Tier 1: inline JSON (bundle build replaces __ENGINE_DATA__)
+  if (raw && raw.indexOf('__ENGINE_DATA__') === -1) {
+    try { return JSON.parse(raw); } catch(e) { /* fall through */ }
+  }
+  // Tier 2: sidecar global set by engine-data.js
+  if (typeof window.__ENGINE_DATA === 'object' && window.__ENGINE_DATA) {
+    return window.__ENGINE_DATA;
+  }
+  // Tier 3: empty
+  return { cards: [], counters: {} };
+})();
+const CARDS = ENGINE_DATA.cards || [];
+const COUNTERS = ENGINE_DATA.counters || {};  // {cardId: [targetCardId, ...]}
+if (!CARDS.length) {
+  // Surface the problem loudly on the page instead of failing silently.
+  window.addEventListener('DOMContentLoaded', () => {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:#2a0a10;color:#ff9b9b;padding:10px 16px;font:12px/1.5 -apple-system,system-ui,sans-serif;letter-spacing:1px;border-bottom:1px solid #6b1a1a;';
+    banner.innerHTML = '<strong>No card data loaded.</strong> Engine is running but hand dealing and adjudication will be empty. Make sure <code>engine-data.js</code> is in the same folder as <code>engine.html</code>, then reload.';
+    document.body.insertBefore(banner, document.body.firstChild);
+  });
+}
+
+const PHASE_LABEL = {COM:'Competition', CON:'Conflict', CRI:'Crisis'};
+const DOMAIN_LABEL = {D:'Diplomatic', I:'Informational', M:'Military', E:'Economic'};
+const RISK_MAG = {LOW:10, MEDIUM:20, HIGH:35, CRITICAL:55};
+const PHASE_MULT = {COM:1.0, CON:1.3, CRI:1.6};
+const COST = {LOW:1, MEDIUM:2, HIGH:3, CRITICAL:5};
+
+// ===========================================================================
+// CARD SCORING
+// ===========================================================================
+function scoreCard(card) {
+  const risk = card.risk || 'LOW';
+  const mag = RISK_MAG[risk] * PHASE_MULT[card.phase];
+  const dime = {D:0, I:0, M:0, E:0};
+  dime[card.domain] = mag;
+
+  const text = ((card.title||'') + ' ' + (card.summary||'')).toLowerCase();
+  const rx = {
+    E: /sanction|tariff|trade|currency|gdp|financ|yuan|dollar|swift|supply chain|chip|semiconductor|rare earth|mineral|oil|gas|energy|port|export|petrol|stockpile|market|bond|fund|debt|asset/,
+    I: /cyber|disinform|intelligence|surveillance|propag|deepfake|broadcast|cable|satellite|osint|sigint|information|hack|network|media|leak|attribution/,
+    M: /missile|deploy|strike|invasion|amphib|submarine|carrier|nuclear|military|troops|forces|exercise|base|naval|air force|deterr|weapon|mobiliz|strike/,
+    D: /alliance|treaty|diplom|summit|partner|recognit|unsc|forum|ceasefire|bilateral|trilateral|multilateral|pact|declaration|ultimat/
+  };
+  Object.keys(rx).forEach(k => {
+    if (k !== card.domain && rx[k].test(text)) dime[k] += mag * 0.3;
+  });
+
+  return {
+    dime,
+    cost: COST[risk],
+    baseEffectiveness: mag,
+    risk,
+    phase: card.phase,
+    domain: card.domain,
+  };
+}
+
+function dimeTotal(scores) { return scores.D + scores.I + scores.M + scores.E; }
+
+// ===========================================================================
+// COUNTERS — is B a listed counter of A?
+// ===========================================================================
+function isCounter(cardA, cardB) {
+  const list = COUNTERS[cardA.id] || [];
+  return list.includes(cardB.id);
+}
+
+// ===========================================================================
+// WORLD MODEL
+// ===========================================================================
+function baseCountry(dime) {
+  return {
+    dime: Object.assign({D:50, I:50, M:50, E:50}, dime || {}),
+    gdp: 100,
+    morale: 50,
+    stockpiles: { rareEarths: 50, semiconductors: 50, energy: 50, grain: 50 },
+  };
+}
+
+const COUNTRY_BASES = {
+  // -------- Indo-Pacific (existing) --------
+  'United States':   { dime:{D:75,I:80,M:90,E:85}, gdp:120, stockpiles:{rareEarths:35,semiconductors:60,energy:70,grain:85} },
+  'China':           { dime:{D:70,I:70,M:80,E:80}, gdp:110, stockpiles:{rareEarths:95,semiconductors:55,energy:55,grain:70} },
+  'Russia':          { dime:{D:50,I:60,M:85,E:45}, gdp:60,  stockpiles:{rareEarths:50,semiconductors:20,energy:95,grain:60} },
+  'Japan':           { dime:{D:75,I:65,M:55,E:80}, gdp:90,  stockpiles:{rareEarths:30,semiconductors:75,energy:25,grain:40} },
+  'India':           { dime:{D:65,I:55,M:65,E:65}, gdp:80,  stockpiles:{rareEarths:45,semiconductors:30,energy:45,grain:75} },
+  'Australia':       { dime:{D:70,I:60,M:60,E:65}, gdp:75,  stockpiles:{rareEarths:80,semiconductors:25,energy:80,grain:75} },
+  'United Kingdom':  { dime:{D:75,I:70,M:65,E:70}, gdp:85,  stockpiles:{rareEarths:25,semiconductors:45,energy:55,grain:55} },
+  'South Korea':     { dime:{D:60,I:65,M:70,E:75}, gdp:85,  stockpiles:{rareEarths:30,semiconductors:95,energy:20,grain:35} },
+  'Taiwan':          { dime:{D:45,I:60,M:55,E:70}, gdp:75,  stockpiles:{rareEarths:25,semiconductors:98,energy:20,grain:30} },
+  'Philippines':     { dime:{D:55,I:50,M:45,E:50}, gdp:55,  stockpiles:{rareEarths:50,semiconductors:25,energy:25,grain:55} },
+  'Singapore':       { dime:{D:70,I:70,M:50,E:85}, gdp:85,  stockpiles:{rareEarths:20,semiconductors:50,energy:15,grain:20} },
+  'Malaysia':        { dime:{D:55,I:50,M:45,E:60}, gdp:60,  stockpiles:{rareEarths:45,semiconductors:50,energy:55,grain:50} },
+  'Canada':          { dime:{D:70,I:65,M:55,E:70}, gdp:85,  stockpiles:{rareEarths:70,semiconductors:35,energy:85,grain:85} },
+  'New Zealand':     { dime:{D:65,I:55,M:40,E:55}, gdp:60,  stockpiles:{rareEarths:25,semiconductors:15,energy:40,grain:75} },
+  'DPRK':            { dime:{D:30,I:50,M:70,E:25}, gdp:25,  stockpiles:{rareEarths:60,semiconductors:10,energy:25,grain:35} },
+  'France':          { dime:{D:75,I:65,M:70,E:70}, gdp:85,  stockpiles:{rareEarths:30,semiconductors:45,energy:65,grain:70} },
+  'ASEAN Member':    { dime:{D:50,I:45,M:40,E:55}, gdp:55,  stockpiles:{rareEarths:45,semiconductors:30,energy:45,grain:55} },
+  'IEA':             { dime:{D:60,I:60,M:30,E:75}, gdp:80,  stockpiles:{rareEarths:30,semiconductors:40,energy:85,grain:40} },
+  // -------- Middle East --------
+  'Israel':          { dime:{D:65,I:80,M:85,E:75}, gdp:60,  stockpiles:{rareEarths:15,semiconductors:60,energy:30,grain:30} },
+  'Iran':            { dime:{D:35,I:65,M:65,E:35}, gdp:35,  stockpiles:{rareEarths:35,semiconductors:15,energy:90,grain:55} },
+  'Saudi Arabia':    { dime:{D:65,I:55,M:65,E:75}, gdp:75,  stockpiles:{rareEarths:20,semiconductors:15,energy:98,grain:30} },
+  'UAE':             { dime:{D:70,I:60,M:50,E:80}, gdp:60,  stockpiles:{rareEarths:25,semiconductors:25,energy:90,grain:25} },
+  'Turkey':          { dime:{D:55,I:60,M:70,E:55}, gdp:50,  stockpiles:{rareEarths:35,semiconductors:30,energy:30,grain:65} },
+  'Egypt':           { dime:{D:55,I:50,M:60,E:40}, gdp:40,  stockpiles:{rareEarths:30,semiconductors:15,energy:55,grain:45} },
+  'Qatar':           { dime:{D:60,I:55,M:35,E:80}, gdp:55,  stockpiles:{rareEarths:15,semiconductors:15,energy:95,grain:20} },
+  // -------- Africa --------
+  'Nigeria':         { dime:{D:55,I:45,M:50,E:50}, gdp:55,  stockpiles:{rareEarths:35,semiconductors:10,energy:80,grain:50} },
+  'South Africa':    { dime:{D:60,I:55,M:50,E:55}, gdp:50,  stockpiles:{rareEarths:90,semiconductors:20,energy:55,grain:55} },
+  'Ethiopia':        { dime:{D:50,I:40,M:55,E:35}, gdp:30,  stockpiles:{rareEarths:25,semiconductors:5,energy:35,grain:45} },
+  'Kenya':           { dime:{D:55,I:50,M:40,E:45}, gdp:35,  stockpiles:{rareEarths:25,semiconductors:15,energy:30,grain:50} },
+  'Morocco':         { dime:{D:60,I:50,M:50,E:50}, gdp:40,  stockpiles:{rareEarths:65,semiconductors:25,energy:25,grain:40} },
+  'DRC':             { dime:{D:35,I:30,M:40,E:30}, gdp:25,  stockpiles:{rareEarths:95,semiconductors:5,energy:35,grain:35} },
+  // -------- South + Central Asia --------
+  'Pakistan':        { dime:{D:50,I:55,M:75,E:35}, gdp:35,  stockpiles:{rareEarths:35,semiconductors:15,energy:35,grain:60} },
+  'Bangladesh':      { dime:{D:50,I:40,M:40,E:45}, gdp:50,  stockpiles:{rareEarths:15,semiconductors:15,energy:25,grain:60} },
+  'Sri Lanka':       { dime:{D:45,I:40,M:35,E:35}, gdp:35,  stockpiles:{rareEarths:30,semiconductors:10,energy:20,grain:45} },
+  'Afghanistan':     { dime:{D:25,I:30,M:40,E:20}, gdp:15,  stockpiles:{rareEarths:55,semiconductors:5,energy:25,grain:35} },
+  'Kazakhstan':      { dime:{D:55,I:50,M:50,E:55}, gdp:50,  stockpiles:{rareEarths:75,semiconductors:15,energy:80,grain:60} },
+  'Uzbekistan':      { dime:{D:50,I:45,M:45,E:45}, gdp:35,  stockpiles:{rareEarths:50,semiconductors:10,energy:55,grain:50} },
+  // -------- Europe + Ukraine --------
+  'Germany':         { dime:{D:75,I:70,M:55,E:85}, gdp:90,  stockpiles:{rareEarths:25,semiconductors:55,energy:35,grain:65} },
+  'Poland':          { dime:{D:70,I:65,M:75,E:65}, gdp:60,  stockpiles:{rareEarths:30,semiconductors:35,energy:50,grain:75} },
+  'Ukraine':         { dime:{D:55,I:65,M:75,E:35}, gdp:30,  stockpiles:{rareEarths:65,semiconductors:25,energy:40,grain:90} },
+  'Italy':           { dime:{D:65,I:60,M:55,E:65}, gdp:75,  stockpiles:{rareEarths:25,semiconductors:40,energy:35,grain:65} },
+  'Spain':           { dime:{D:65,I:55,M:50,E:60}, gdp:65,  stockpiles:{rareEarths:30,semiconductors:30,energy:45,grain:65} },
+  'Netherlands':     { dime:{D:70,I:65,M:50,E:75}, gdp:75,  stockpiles:{rareEarths:25,semiconductors:90,energy:50,grain:55} },
+  'Norway':          { dime:{D:70,I:65,M:55,E:75}, gdp:70,  stockpiles:{rareEarths:55,semiconductors:25,energy:90,grain:35} },
+  'EU':              { dime:{D:80,I:70,M:55,E:90}, gdp:110, stockpiles:{rareEarths:30,semiconductors:55,energy:45,grain:75} },
+  'NATO':            { dime:{D:75,I:75,M:90,E:80}, gdp:120, stockpiles:{rareEarths:40,semiconductors:60,energy:60,grain:75} },
+  'Belgium':         { dime:{D:70,I:60,M:50,E:70}, gdp:75,  stockpiles:{rareEarths:25,semiconductors:35,energy:30,grain:55} },
+};
+// Common aliases — point at the canonical entry above so cards using
+// shorthand actor names still find the right baseline.
+COUNTRY_BASES['US'] = COUNTRY_BASES['United States'];
+COUNTRY_BASES['UK'] = COUNTRY_BASES['United Kingdom'];
+COUNTRY_BASES['United Arab Emirates'] = COUNTRY_BASES['UAE'];
+COUNTRY_BASES['European Union'] = COUNTRY_BASES['EU'];
+
+function createWorld() {
+  const world = {
+    turn: 0,
+    countries: {},
+    market: {
+      rareEarths:     { price: 100, prev: 100 },
+      semiconductors: { price: 100, prev: 100 },
+      energy:         { price: 100, prev: 100 },
+      grain:          { price: 100, prev: 100 },
+    },
+    globalRisk: 30,
+  };
+  const allActors = new Set();
+  CARDS.forEach(c => (c.actors || []).forEach(a => allActors.add(a)));
+  allActors.forEach(a => {
+    const base = COUNTRY_BASES[a] || {};
+    world.countries[a] = baseCountry(base.dime);
+    if (base.gdp) world.countries[a].gdp = base.gdp;
+    if (base.stockpiles) world.countries[a].stockpiles = Object.assign(world.countries[a].stockpiles, base.stockpiles);
+  });
+  return world;
+}
+
+let WORLD = createWorld();
+
+function favourabilityScore(country) {
+  const dimeAvg = (country.dime.D + country.dime.I + country.dime.M + country.dime.E) / 4;
+  const stockAvg = (country.stockpiles.rareEarths + country.stockpiles.semiconductors
+                    + country.stockpiles.energy + country.stockpiles.grain) / 4;
+  // 50% DIME, 25% GDP, 15% stockpiles, 10% morale
+  return Math.round(dimeAvg * 0.5 + country.gdp * 0.25 + stockAvg * 0.15 + country.morale * 0.10);
+}
+
+// ===========================================================================
+// ADJUDICATION
+// ===========================================================================
+function adjudicate(attackCard, defendCard, world) {
+  world = world || WORLD;
+  const a = scoreCard(attackCard);
+  const breakdown = [];
+
+  let net = a.baseEffectiveness;
+  breakdown.push({ label: `Attacker base (${attackCard.id}, ${attackCard.risk})`, value: net.toFixed(1) });
+
+  // Phase context
+  const phaseBonus = (attackCard.phase === 'CRI') ? 8 : (attackCard.phase === 'CON' ? 4 : 0);
+  if (phaseBonus) { net += phaseBonus; breakdown.push({ label: `${PHASE_LABEL[attackCard.phase]} phase bonus`, value: `+${phaseBonus}` }); }
+
+  // Actor strength (average DIME)
+  const primaryActor = (attackCard.actors || [])[0];
+  if (primaryActor && world.countries[primaryActor]) {
+    const avg = (world.countries[primaryActor].dime.D + world.countries[primaryActor].dime.I
+                 + world.countries[primaryActor].dime.M + world.countries[primaryActor].dime.E) / 4;
+    const mod = (avg - 50) * 0.3;
+    net += mod;
+    breakdown.push({ label: `${primaryActor} posture (${Math.round(avg)})`, value: (mod >= 0 ? '+' : '') + mod.toFixed(1) });
+  }
+
+  if (defendCard) {
+    const d = scoreCard(defendCard);
+    let defenseValue = d.baseEffectiveness * 0.7;
+
+    // Counter bonus: B is a canonical counter to A
+    if (isCounter(attackCard, defendCard)) {
+      defenseValue *= 1.6;
+      breakdown.push({ label: `Canonical counter (${defendCard.id} counters ${attackCard.id})`, value: `-${(d.baseEffectiveness * 0.7 * 0.6).toFixed(1)}` });
+    }
+
+    // Domain synergy: same primary domain = direct counter
+    if (defendCard.domain === attackCard.domain) {
+      defenseValue *= 1.15;
+    }
+
+    net -= defenseValue;
+    breakdown.push({ label: `Defender (${defendCard.id}, ${defendCard.risk})`, value: `-${defenseValue.toFixed(1)}` });
+
+    // Defender posture
+    const dActor = (defendCard.actors || [])[0];
+    if (dActor && world.countries[dActor]) {
+      const avg = (world.countries[dActor].dime.D + world.countries[dActor].dime.I
+                   + world.countries[dActor].dime.M + world.countries[dActor].dime.E) / 4;
+      const mod = (avg - 50) * 0.2;
+      net -= mod;
+      breakdown.push({ label: `${dActor} defensive posture (${Math.round(avg)})`, value: (mod >= 0 ? '-' : '+') + Math.abs(mod).toFixed(1) });
+    }
+  }
+
+  // Risk variance (deterministic: derive from card id hash)
+  const h = hash(attackCard.id + (defendCard ? defendCard.id : '') + world.turn);
+  const variance = (h % 11) - 5;  // -5..+5
+  net += variance;
+  breakdown.push({ label: 'Contextual variance', value: (variance >= 0 ? '+' : '') + variance });
+
+  let outcome, outcomeText;
+  if (net >= 30) {
+    outcome = 'BEST';
+    outcomeText = 'Best-case outcome — the action achieves its intended strategic effect.';
+  } else if (net >= 0) {
+    outcome = 'PARTIAL';
+    outcomeText = 'Partial success — some objectives met, significant friction and compromise.';
+  } else {
+    outcome = 'BACKFIRE';
+    outcomeText = 'Backfire — the action produces counter-effects favouring the opposition.';
+  }
+
+  return { net: Math.round(net * 10) / 10, outcome, outcomeText, breakdown };
+}
+
+function hash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i); h = (h * 16777619) >>> 0;
+  }
+  return h;
+}
+
+// ===========================================================================
+// EFFECT APPLICATION
+// ===========================================================================
+function applyEffects(card, outcome, world, targetCountry) {
+  world = world || WORLD;
+  const scoring = scoreCard(card);
+  const actor = (card.actors || [])[0];
+  if (!actor || !world.countries[actor]) return;
+
+  const mult = outcome === 'BEST' ? 1.0 : outcome === 'PARTIAL' ? 0.4 : -0.6;
+
+  // Apply DIME delta to actor
+  Object.keys(scoring.dime).forEach(k => {
+    world.countries[actor].dime[k] = clamp(world.countries[actor].dime[k] + scoring.dime[k] * 0.15 * mult, 0, 100);
+  });
+
+  // ---- MARKET + STOCKPILE IMPACT ----------------------------------------
+  // Two layers — every card always moves at least the baseline layer:
+  //
+  //   Layer A (KEYWORD): cards that explicitly mention a commodity get a
+  //     larger, targeted price/stockpile move on that commodity.
+  //   Layer B (BASELINE): every card nudges the broader market according
+  //     to its primary DIME domain and risk magnitude — so an Economic
+  //     card always touches the economy even if no commodity keyword
+  //     appears in its text.
+  //
+  // sign = +1: restrictive — escalatory, punitive, or destabilizing actions.
+  //            Markets price in risk: commodity prices RISE, target
+  //            country's stockpile of that commodity FALLS.
+  // sign = -1: expansive — cooperative, integrative, or stabilizing actions.
+  //            Markets price in supply: commodity prices EASE, actor's
+  //            stockpile of that commodity RISES.
+  // BACKFIRE flips the magnitude (mult is negative) so a failed escalation
+  // gives back some of the priced-in risk premium.
+  //
+  // Classification uses FOUR signal layers, in priority:
+  //   1. Phase / domain meta-tags (strongest):
+  //        - CRI phase  → always restrictive (crises destabilize markets)
+  //        - M  domain  → always restrictive (any military activity is risk-positive)
+  //        - I  domain + offensive keywords → restrictive
+  //   2. Explicit EXPANSIVE keywords (cooperation, accords, funds, integration)
+  //   3. Explicit RESTRICTIVE keywords (sanctions, exercises, exclusions, strikes)
+  //   4. Default by phase: COM → expansive · CON → restrictive · CRI → restrictive
+  //
+  // This is the fix for cards like CRI-M-04 "PLAN Amphibious Landing Exercise"
+  // that previously read as expansive only because their bland titles missed
+  // every keyword in a punitive-vocab list.
+  const text = ((card.title||'') + ' ' + (card.summary||'')).toLowerCase();
+
+  const RESTRICTIVE_RX = /\b(embargo|sanction|export[ -]?control|blockade|disrupt|strike|shortage|freeze|shut[ -]?down|cut[ -]?off|attack|degrad|damage|tariff|seiz|interdict|chokepoint|denial|exclusion|war\b|warfare|combat|hostil|threat|coerc|kinetic|destruction|destroy|kill[ -]?chain|deepfake|cyber[ -]?attack|hack|spoof|prepositioning|invasion|amphib|nuclear|emp\b|missile|icbm|surge|militari[sz]|exercise|drill|surveillance|espionage|disinformation|propaganda|interfer|destabil|breach|theft|leak|sabotag|harass|fonop|incursion|provoc|bastion|standoff|ultimat|expulsion|expel|deploy|mobiliz|lockdown|violation|warning|coercion|punitive|veto|reject|seizure|raid|operationalization|enhancement|modernization|capture|trigger|inspection|toll|test\b|shadow|fear)\b/i;
+
+  const EXPANSIVE_RX = /\b(partnership|cooperation|agreement|accord|alliance|summit|forum|council|dialogue|deepening|integration|peaceful|peace|stabili[sz]|de[ -]?escalat|easing|stewardship|reform|joint declaration|investment|establish|inaugurat|humanitarian|mediation|reset|rapprochement|aid package|food security|stockpile|stockpiling|trade deal|outreach|currency pilot|gateway|sovereign fund|sovereign wealth|cease[ -]?fire|truce|negotiation|membership|pathway|fund\b|initiative|deepening)\b/i;
+
+  // Offensive Information ops — cyber, disinfo, espionage — are destabilizing
+  // even when the card title sounds neutral.
+  const I_OFFENSIVE_RX = /cyber|hack|disinform|deepfake|spoof|prepositioning|breach|leak|theft|propag|surveillance|espionage|sabotag|destroy|interfer|destabil|delousing/i;
+
+  let isRestrictive;
+  if (card.domain === 'M') {
+    // Any military card — exercise, deployment, mobilization, strike — is
+    // destabilizing to commodity markets regardless of how the title is worded.
+    isRestrictive = true;
+  } else if (card.domain === 'I' && I_OFFENSIVE_RX.test(text)) {
+    // Offensive information ops (cyber, disinfo, espionage) escalate.
+    isRestrictive = true;
+  } else if (EXPANSIVE_RX.test(text)) {
+    // Cooperative language wins next, so e.g. Diplomatic crisis mediation
+    // and CON-phase Economic stockpile-builds register as expansive.
+    isRestrictive = false;
+  } else if (RESTRICTIVE_RX.test(text)) {
+    isRestrictive = true;
+  } else {
+    // No keyword match — fall back to phase. Competition defaults expansive
+    // (the COM phase is dominated by deals/forums/upgrades); Conflict and
+    // Crisis default restrictive (the prevailing pressure of those phases).
+    isRestrictive = card.phase !== 'COM';
+  }
+  const sign = isRestrictive ? 1 : -1;
+  const priceShift = scoring.baseEffectiveness * 0.08 * mult * sign;
+  const stockMag   = Math.abs(scoring.baseEffectiveness * 0.06 * mult);
+  const stockHit   = (sign === 1) ? -stockMag : stockMag;          // BEST: target loses OR actor gains
+  const stockHolder = (isRestrictive && targetCountry && targetCountry !== actor && world.countries[targetCountry])
+    ? targetCountry : actor;
+
+  // ---- Layer A: keyword-targeted commodity moves (strong) ----
+  const matchedCommodities = new Set();
+  const moveCommodity = (key, regex) => {
+    if (!regex.test(text)) return;
+    matchedCommodities.add(key);
+    world.market[key].price = clamp(world.market[key].price + priceShift, 40, 300);
+    if (world.countries[stockHolder] && world.countries[stockHolder].stockpiles) {
+      const sp = world.countries[stockHolder].stockpiles;
+      sp[key] = clamp(sp[key] + stockHit, 0, 100);
+    }
+  };
+  moveCommodity('rareEarths',     /rare earth|mineral|cobalt|lithium|nickel|magnet/);
+  moveCommodity('semiconductors', /chip|semiconductor|silicon|fab\b|fabrication|wafer|asml|tsmc|euv/);
+  moveCommodity('energy',         /oil|gas|energy|petrol|lng|power|pipeline|refin|crude|opec/);
+  moveCommodity('grain',          /grain|food|wheat|rice|agricultur|fertili[sz]er|harvest|granar/);
+
+  // ---- Layer B: always-on baseline ripple (weaker, scales with domain) ----
+  // Every card moves the economy a little. Domain decides which commodities
+  // ripple most strongly; risk magnitude sets the size of the nudge.
+  const COMMODITIES = ['rareEarths', 'semiconductors', 'energy', 'grain'];
+  // Per-domain commodity weighting (0..1 of full ripple)
+  const DOMAIN_RIPPLE = {
+    E: { rareEarths: 0.85, semiconductors: 0.85, energy: 0.85, grain: 0.85 }, // Economic — broad
+    M: { rareEarths: 0.40, semiconductors: 0.30, energy: 0.70, grain: 0.30 }, // Military — energy/logistics
+    I: { rareEarths: 0.25, semiconductors: 0.65, energy: 0.20, grain: 0.20 }, // Information — chips/comms
+    D: { rareEarths: 0.30, semiconductors: 0.30, energy: 0.30, grain: 0.30 }, // Diplomatic — calming/coordinating, mild
+  };
+  const ripple = DOMAIN_RIPPLE[card.domain] || DOMAIN_RIPPLE.D;
+  const baselineMag = scoring.baseEffectiveness * 0.025 * mult * sign;     // ~3-5pt per CRITICAL play
+  const baselineStockMag = Math.abs(scoring.baseEffectiveness * 0.018 * mult);
+  COMMODITIES.forEach(k => {
+    if (matchedCommodities.has(k)) return; // keyword layer already handled it (stronger)
+    const w = ripple[k] || 0;
+    if (w === 0) return;
+    world.market[k].price = clamp(world.market[k].price + baselineMag * w, 40, 300);
+    if (world.countries[stockHolder] && world.countries[stockHolder].stockpiles) {
+      const hit = (sign === 1 ? -baselineStockMag : baselineStockMag) * w;
+      world.countries[stockHolder].stockpiles[k] =
+        clamp(world.countries[stockHolder].stockpiles[k] + hit, 0, 100);
+    }
+  });
+
+  // ---- GLOBAL RISK -------------------------------------------------------
+  // Every card moves global risk a little — phase amplifies the move.
+  const riskBase = scoring.baseEffectiveness * 0.02 * (outcome === 'BACKFIRE' ? 1.5 : outcome === 'BEST' ? 0.8 : 1.0);
+  const phaseMult = card.phase === 'CRI' ? 1.0 : card.phase === 'CON' ? 0.5 : 0.15;
+  // Restrictive military/info plays add risk; diplomatic BEST plays calm markets.
+  const riskDir = (card.domain === 'D' && outcome === 'BEST' && !isRestrictive) ? -0.5 : 1.0;
+  world.globalRisk = clamp(world.globalRisk + riskBase * phaseMult * riskDir, 0, 100);
+
+  // ---- GDP / MORALE ------------------------------------------------------
+  // Every play nudges actor's GDP — magnitude scales with outcome.
+  // BEST = +5%·base, PARTIAL = +2%·base, BACKFIRE = -10%·base
+  const gdpDelta = outcome === 'BACKFIRE' ? -scoring.baseEffectiveness * 0.10
+                 : outcome === 'PARTIAL'  ?  scoring.baseEffectiveness * 0.02
+                 :                            scoring.baseEffectiveness * 0.05;
+  world.countries[actor].gdp = clamp(world.countries[actor].gdp + gdpDelta, 30, 200);
+  world.countries[actor].morale = clamp(world.countries[actor].morale + (mult * 4), 0, 100);
+
+  // Restrictive plays bruise the target's GDP + morale a touch
+  if (isRestrictive && targetCountry && targetCountry !== actor && world.countries[targetCountry]) {
+    const t = world.countries[targetCountry];
+    t.gdp    = clamp(t.gdp    - scoring.baseEffectiveness * 0.04 * mult, 30, 200);
+    t.morale = clamp(t.morale - 2 * mult, 0, 100);
+  }
+}
+
+// Snapshot current prices into `prev` BEFORE applying a card's effect, so
+// the delta the globe and stats panel see is the change attributable to
+// this play. Called once at the start of each card resolution.
+function snapshotMarketPrev(world) {
+  world = world || WORLD;
+  if (!world.market) return;
+  Object.values(world.market).forEach(m => { m.prev = m.price; });
+}
+
+// ---------------------------------------------------------------------------
+// END-OF-TURN MARKET TICK
+// Runs once per card play AFTER applyEffects. Pushes price↔stockpile feedback
+// into GDP, decays risk toward baseline, drifts stockpiles toward equilibrium.
+// Does NOT touch m.prev — that's already snapshotted by snapshotMarketPrev().
+// ---------------------------------------------------------------------------
+function endOfTurnMarketUpdate(world) {
+  world = world || WORLD;
+  if (!world.market) return;
+
+  // 1) Stockpile <-> price feedback into GDP. Net exporters benefit from
+  //    high prices, net importers feel the squeeze. 100 = baseline.
+  const COMMODITIES = ['rareEarths', 'semiconductors', 'energy', 'grain'];
+  Object.values(world.countries).forEach(c => {
+    if (!c.stockpiles) return;
+    let gdpDelta = 0;
+    COMMODITIES.forEach(k => {
+      const priceDev  = (world.market[k].price - 100) / 100;     // -0.6 .. +2.0
+      const stockDev  = (c.stockpiles[k] - 50) / 50;              // -1 .. +1
+      gdpDelta += priceDev * stockDev * 0.6;
+    });
+    c.gdp = clamp(c.gdp + gdpDelta, 30, 200);
+  });
+
+  // 2) Risk decays toward baseline 30 (about 8% gap per turn)
+  world.globalRisk = clamp(world.globalRisk + (30 - world.globalRisk) * 0.08, 0, 100);
+
+  // 3) Stockpiles drift slowly toward 50 (production/consumption equilibrium)
+  Object.values(world.countries).forEach(c => {
+    if (!c.stockpiles) return;
+    Object.keys(c.stockpiles).forEach(k => {
+      c.stockpiles[k] = clamp(c.stockpiles[k] + (50 - c.stockpiles[k]) * 0.02, 0, 100);
+    });
+  });
+}
+
+function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+
+// ===========================================================================
+// UI — Tab switching
+// ===========================================================================
+document.querySelectorAll('nav.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('section.tab').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'stats') renderStats();
+  });
+});
+
+function closeEngine() {
+  // If embedded in a host page, let the parent handle the close.
+  if (window.parent && window.parent !== window) {
+    try { parent.postMessage({type:'wargame-close'}, '*'); return; } catch(e){}
+  }
+  // Standalone: go back to home.
+  window.location.href = 'home.html';
+}
+document.getElementById('btn-close').addEventListener('click', closeEngine);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeEngine();
+});
+
+// ===========================================================================
+// GLOBE BRIDGE — engine opens globe.html as a popup and posts state to it
+// directly via postMessage. Detects when running inside an iframe so it
+// can also relay through window.parent (kept for forward-compatibility
+// with any host that wants to mirror state to the globe).
+// ===========================================================================
+const IS_EMBEDDED = (window.parent !== window);
+let globeWin = null;
+let globeReady = false;
+let lastBroadcast = null;
+
+function openGlobeDirect() {
+  if (globeWin && !globeWin.closed) { try { globeWin.focus(); } catch(e){}; return; }
+  globeWin = window.open('globe.html', 'wargame-globe',
+    'width=1400,height=900,menubar=no,toolbar=no,location=no,status=no');
+  globeReady = false;
+  if (!globeWin) {
+    alert('Pop-up blocked. Please allow pop-ups for this page, then click Open Globe View again.');
+  }
+}
+
+// Open Globe View — route per mode
+document.getElementById('btn-open-globe').addEventListener('click', () => {
+  if (IS_EMBEDDED) {
+    try { parent.postMessage({type:'wargame-open-globe'}, '*'); } catch(e){}
+  } else {
+    openGlobeDirect();
+  }
+  // push current state shortly after so the fresh globe has something to render
+  setTimeout(broadcastState, 400);
+  setTimeout(broadcastState, 1200);
+});
+
+// Listen for the globe's ready handshake (standalone mode). In embedded mode
+// the bundle handles this and forwards state; we just replay lastBroadcast.
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.type === 'wargame-globe-ready') {
+    globeReady = true;
+    if (lastBroadcast) pushToGlobeDirect(lastBroadcast);
+  }
+});
+
+function pushToGlobeDirect(payload) {
+  if (!globeWin || globeWin.closed) return;
+  try { globeWin.postMessage({type:'wargame-state', payload}, '*'); } catch(e){}
+}
+
+// Broadcast state — in embedded mode via parent relay; in standalone mode
+// directly to the globe popup. Either way, lastBroadcast is kept so a late
+// globe-ready signal can replay it.
+function broadcastState(event) {
+  const payload = {
+    world: WORLD,
+    game: GAME ? {
+      players: GAME.players,
+      currentIdx: GAME.currentIdx,
+      turn: GAME.turn,
+      totalTurns: GAME.totalTurns,
+      log: GAME.log,
+    } : null,
+    event: event || null,
+  };
+  lastBroadcast = payload;
+
+  if (IS_EMBEDDED) {
+    try { parent.postMessage({type: 'wargame-state-out', payload}, '*'); } catch(e){}
+  }
+  // Always try direct-to-globe too; covers standalone mode AND a bundle case
+  // where the user opened globe.html as a sibling window manually.
+  if (globeWin && !globeWin.closed) {
+    pushToGlobeDirect(payload);
+  }
+}
+
+
+// ===========================================================================
+// ADJUDICATE TAB
+// ===========================================================================
+function populateCardSelect(sel, includeBlank) {
+  if (includeBlank) sel.innerHTML = '<option value="">— World State Only —</option>';
+  else sel.innerHTML = '';
+  CARDS.slice().sort((a,b) => a.id.localeCompare(b.id)).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.id} — ${c.title}`;
+    sel.appendChild(opt);
+  });
+}
+populateCardSelect(document.getElementById('adj-attack'), false);
+populateCardSelect(document.getElementById('adj-defend'), true);
+
+function cardById(id) { return CARDS.find(c => c.id === id); }
+
+function previewCard(card, el) {
+  if (!card) { el.innerHTML = ''; return; }
+  const s = scoreCard(card);
+  el.innerHTML = `
+    <div class="pv-title">${escapeHtml(card.title)}</div>
+    <div class="pv-meta">
+      <span>${PHASE_LABEL[card.phase]}</span>
+      <span>${DOMAIN_LABEL[card.domain]}</span>
+      <span>${card.risk || '—'}</span>
+      <span>Cost ${s.cost}</span>
+    </div>
+    <div class="pv-summary">${escapeHtml((card.actors||[]).join(', '))}</div>
+    <div class="pv-dime">
+      ${['D','I','M','E'].map(k => `<div class="dime-cell ${k.toLowerCase()}"><div class="dk">${k}</div><div class="dv">${Math.round(s.dime[k])}</div></div>`).join('')}
+    </div>
+  `;
+}
+
+document.getElementById('adj-attack').addEventListener('change', (e) => {
+  previewCard(cardById(e.target.value), document.getElementById('adj-attack-preview'));
+});
+document.getElementById('adj-defend').addEventListener('change', (e) => {
+  previewCard(cardById(e.target.value), document.getElementById('adj-defend-preview'));
+});
+// Initial preview
+if (CARDS.length) {
+  document.getElementById('adj-attack').value = CARDS[0].id;
+  previewCard(CARDS[0], document.getElementById('adj-attack-preview'));
+}
+
+document.getElementById('btn-adjudicate').addEventListener('click', () => {
+  const a = cardById(document.getElementById('adj-attack').value);
+  const d = cardById(document.getElementById('adj-defend').value);
+  if (!a) return;
+  const attackerCountry = (a.actors || [])[0] || 'United States';
+  const targetCountry   = deriveTarget(a, attackerCountry, d);
+
+  // Apply real effects so adjudicate actually moves world state
+  const before = snapshotDime(attackerCountry);
+  const beforeT = attackerCountry !== targetCountry ? snapshotDime(targetCountry) : null;
+  snapshotMarketPrev(WORLD);
+  const res = adjudicate(a, d, WORLD);
+  applyEffects(a, res.outcome, WORLD, targetCountry);
+  endOfTurnMarketUpdate(WORLD);
+  const after = snapshotDime(attackerCountry);
+  const afterT = attackerCountry !== targetCountry ? snapshotDime(targetCountry) : null;
+
+  document.getElementById('adj-result').innerHTML = `
+    <div class="result-panel">
+      <div class="result-head">
+        <div class="result-outcome ${res.outcome}">${res.outcome}</div>
+        <div class="result-net">${res.net >= 0 ? '+' : ''}${res.net} <span class="unit">NET</span></div>
+      </div>
+      <div class="breakdown">
+        ${res.breakdown.map(b => {
+          const num = parseFloat(b.value);
+          const cls = num > 0 ? 'pos' : num < 0 ? 'neg' : '';
+          return `<div class="breakdown-row"><div class="breakdown-label">${escapeHtml(b.label)}</div><div class="breakdown-value ${cls}">${b.value}</div></div>`;
+        }).join('')}
+        <div class="breakdown-row total"><div class="breakdown-label">NET</div><div class="breakdown-value">${res.net >= 0 ? '+' : ''}${res.net}</div></div>
+      </div>
+      <div class="outcome-text">${res.outcomeText}</div>
+    </div>
+  `;
+
+  // Push to globe so it lights up even outside Play Game mode
+  broadcastState({
+    phase: a.phase,
+    actor: attackerCountry,
+    attacker: attackerCountry,
+    target: targetCountry,
+    outcome: res.outcome,
+    net: res.net,
+    cardId: a.id,
+    cardTitle: a.title,
+    summary: res.outcomeText,
+    dimeDeltas: diffDime(before, after),
+    attackerDeltas: diffDime(before, after),
+    targetDeltas: diffDime(beforeT, afterT),
+  });
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  document.getElementById('adj-result').innerHTML = '';
+  document.getElementById('adj-defend').value = '';
+  previewCard(null, document.getElementById('adj-defend-preview'));
+});
+
+// ===========================================================================
+// STATS TAB
+// ===========================================================================
+function renderStats() {
+  const grid = document.getElementById('countries-grid');
+  const countries = Object.keys(WORLD.countries).sort((a,b) => favourabilityScore(WORLD.countries[b]) - favourabilityScore(WORLD.countries[a]));
+
+  grid.innerHTML = countries.map(name => {
+    const c = WORLD.countries[name];
+    const fav = favourabilityScore(c);
+    const favColor = fav >= 70 ? 'var(--good)' : fav >= 50 ? 'var(--accent)' : fav >= 35 ? 'var(--warn)' : 'var(--bad)';
+    return `
+      <div class="country-card">
+        <h4>${escapeHtml(name)} <span class="fav-score" style="color:${favColor}">${fav}</span></h4>
+        ${['D','I','M','E'].map(k => `
+          <div class="bar-row">
+            <div class="bar-label">${k}</div>
+            <div class="bar-track"><div class="bar-fill ${k.toLowerCase()}" style="width:${c.dime[k]}%;"></div></div>
+            <div class="bar-value">${Math.round(c.dime[k])}</div>
+          </div>
+        `).join('')}
+        <div class="stockpile-row"><span>GDP</span><span class="sp-v">${Math.round(c.gdp)}</span></div>
+        <div class="stockpile-row"><span>Morale</span><span class="sp-v">${Math.round(c.morale)}</span></div>
+        <div class="stockpile-row"><span>Rare Earths</span><span class="sp-v">${Math.round(c.stockpiles.rareEarths)}</span></div>
+        <div class="stockpile-row"><span>Semiconductors</span><span class="sp-v">${Math.round(c.stockpiles.semiconductors)}</span></div>
+        <div class="stockpile-row"><span>Energy</span><span class="sp-v">${Math.round(c.stockpiles.energy)}</span></div>
+        <div class="stockpile-row"><span>Grain</span><span class="sp-v">${Math.round(c.stockpiles.grain)}</span></div>
+      </div>
+    `;
+  }).join('');
+
+  const market = document.getElementById('market-panel');
+  market.innerHTML = Object.entries(WORLD.market).map(([k, v]) => {
+    const delta = v.price - v.prev;
+    const cls = delta > 0.1 ? 'pos' : delta < -0.1 ? 'neg' : '';
+    const baseDelta = v.price - 100;
+    const baseCls = baseDelta > 0.1 ? 'pos' : baseDelta < -0.1 ? 'neg' : '';
+    return `
+      <div class="market-card">
+        <div class="mk-name">${k.replace(/([A-Z])/g, ' $1').trim()}</div>
+        <div class="mk-price">${Math.round(v.price)}</div>
+        <div class="mk-delta ${cls}">${delta >= 0 ? '+' : ''}${delta.toFixed(1)} this turn</div>
+        <div class="mk-delta ${baseCls}" style="color:var(--text3);font-size:9px;letter-spacing:1px;">${baseDelta >= 0 ? '+' : ''}${baseDelta.toFixed(0)} vs baseline 100</div>
+      </div>
+    `;
+  }).join('') + `
+    <div class="market-card" style="border-color:var(--accent)">
+      <div class="mk-name">Global Risk Index</div>
+      <div class="mk-price">${Math.round(WORLD.globalRisk)}</div>
+      <div class="mk-delta" style="color:var(--text3);">0-100 · decays toward 30</div>
+    </div>
+  `;
+}
+
+document.getElementById('btn-reset-world').addEventListener('click', () => {
+  WORLD = createWorld();
+  renderStats();
+});
+
+// ===========================================================================
+// PLAY GAME TAB
+// ===========================================================================
+let GAME = null;
+const HAND_SIZE = 5;
+const TURNS_PER_PLAYER = 30;
+
+const setupSlots = document.getElementById('player-slots');
+const addPlayerBtn = document.getElementById('btn-add-player');
+const startBtn = document.getElementById('btn-start');
+
+function playerOptions() {
+  return Object.keys(COUNTRY_BASES).map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function refreshStartEnabled() {
+  const slots = setupSlots.querySelectorAll('.setup-slot');
+  const valid = slots.length >= 2 && Array.from(slots).every(s => {
+    const n = s.querySelector('input').value.trim();
+    return n.length > 0;
+  });
+  startBtn.disabled = !valid;
+}
+
+function addPlayerSlot(name, country) {
+  const n = setupSlots.children.length + 1;
+  if (n > 4) return;
+  const row = document.createElement('div');
+  row.className = 'setup-slot';
+  row.innerHTML = `
+    <div class="pn">P${n}</div>
+    <input type="text" placeholder="Player name" value="${name || ''}">
+    <select>${playerOptions()}</select>
+    <button class="btn-remove" type="button">×</button>
+  `;
+  if (country) row.querySelector('select').value = country;
+  row.querySelector('input').addEventListener('input', refreshStartEnabled);
+  row.querySelector('.btn-remove').addEventListener('click', () => { row.remove(); renumberSlots(); refreshStartEnabled(); });
+  setupSlots.appendChild(row);
+  addPlayerBtn.disabled = setupSlots.children.length >= 4;
+  refreshStartEnabled();
+}
+
+function renumberSlots() {
+  Array.from(setupSlots.children).forEach((slot, i) => { slot.querySelector('.pn').textContent = 'P' + (i + 1); });
+  addPlayerBtn.disabled = setupSlots.children.length >= 4;
+}
+
+// Seed with two players
+addPlayerSlot('Player 1', 'United States');
+addPlayerSlot('Player 2', 'China');
+
+addPlayerBtn.addEventListener('click', () => addPlayerSlot('Player ' + (setupSlots.children.length + 1)));
+
+startBtn.addEventListener('click', () => {
+  const slots = Array.from(setupSlots.querySelectorAll('.setup-slot'));
+  const players = slots.map((s, i) => ({
+    idx: i,
+    name: s.querySelector('input').value.trim() || `Player ${i+1}`,
+    country: s.querySelector('select').value,
+    cardsPlayed: [],
+    score: 0,
+  }));
+  WORLD = createWorld();
+  GAME = {
+    players,
+    currentIdx: 0,
+    turn: 1,
+    totalTurns: TURNS_PER_PLAYER * players.length,
+    hands: {},
+    log: [],
+  };
+  players.forEach(p => GAME.hands[p.idx] = drawHand(p.country));
+  document.getElementById('play-setup').hidden = true;
+  document.getElementById('play-end').hidden = true;
+  document.getElementById('play-game').hidden = false;
+  renderGame();
+  broadcastState();
+});
+
+function drawHand(country) {
+  const pool = CARDS.filter(c => (c.actors || []).includes(country));
+  const safePool = pool.length ? pool : CARDS.slice();
+  const hand = [];
+  const used = new Set();
+  let attempts = 0;
+  while (hand.length < HAND_SIZE && attempts < 500) {
+    const pick = safePool[Math.floor(Math.random() * safePool.length)];
+    if (!used.has(pick.id)) { used.add(pick.id); hand.push(pick); }
+    attempts++;
+  }
+  return hand;
+}
+
+function renderGame() {
+  if (!GAME) return;
+  const p = GAME.players[GAME.currentIdx];
+  document.getElementById('gt-player').textContent = p.name;
+  document.getElementById('gt-country').textContent = p.country;
+  document.getElementById('gt-turn').textContent = `Turn ${GAME.turn} of ${TURNS_PER_PLAYER}`;
+
+  // Scoreboard
+  const scoreEl = document.getElementById('gt-scores');
+  const ranked = GAME.players.slice().sort((a,b) => favourabilityScore(WORLD.countries[b.country]) - favourabilityScore(WORLD.countries[a.country]));
+  scoreEl.innerHTML = ranked.map((pl, i) => {
+    const fav = favourabilityScore(WORLD.countries[pl.country]);
+    return `<div class="sc-row ${i === 0 ? 'lead' : ''}"><div class="sc-name">${escapeHtml(pl.name)} · ${escapeHtml(pl.country)}</div><div class="sc-val">${fav}</div></div>`;
+  }).join('');
+
+  // Hand
+  const hand = GAME.hands[p.idx] || [];
+  const handEl = document.getElementById('gt-hand');
+  if (hand.length === 0) {
+    handEl.innerHTML = `<div class="empty-state">No cards in hand. Press Redraw or Skip.</div>`;
+  } else {
+    handEl.innerHTML = hand.map((c, i) => {
+      const s = scoreCard(c);
+      return `
+        <div class="hand-card" data-idx="${i}">
+          <div class="hc-cost">${s.cost}</div>
+          <div class="hc-id">${c.id}</div>
+          <div class="hc-title">${escapeHtml(c.title)}</div>
+          <div class="hc-meta">
+            <span>${PHASE_LABEL[c.phase]}</span>
+            <span>${DOMAIN_LABEL[c.domain]}</span>
+            <span>${c.risk || '—'}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    handEl.querySelectorAll('.hand-card').forEach(el => {
+      const card = hand[parseInt(el.dataset.idx, 10)];
+      el.addEventListener('click', () => {
+        // Dismiss tooltip immediately on click — otherwise the hand element
+        // gets re-rendered and mouseleave never fires, leaving a stuck
+        // tooltip floating over (and visually masking) the counter modal.
+        hideCardTooltip();
+        playCard(parseInt(el.dataset.idx, 10));
+      });
+      // Hover-to-peek: full-card dialog tracks cursor while hovering
+      el.addEventListener('mouseenter', (ev) => showCardTooltip(card, ev));
+      el.addEventListener('mousemove',  (ev) => positionCardTooltip(ev));
+      el.addEventListener('mouseleave', hideCardTooltip);
+    });
+  }
+
+  // Log
+  renderLog();
+}
+
+function renderLog() {
+  const log = document.getElementById('gt-log');
+  if (!GAME.log.length) { log.innerHTML = `<div class="log-entry" style="color:var(--text3)">No actions yet.</div>`; return; }
+  log.innerHTML = GAME.log.slice().reverse().map(e => `
+    <div class="log-entry">
+      <div><span class="le-turn">[T${e.turn}]</span> <span class="le-player">${escapeHtml(e.player)}</span> played <strong>${escapeHtml(e.cardTitle)}</strong> (${e.cardId}) → <span class="le-outcome ${e.outcome}">${e.outcome}</span> (net ${e.net >= 0 ? '+' : ''}${e.net})</div>
+      <div style="color:var(--text3);font-size:10px;margin-top:3px;">${escapeHtml(e.summary)}</div>
+    </div>
+  `).join('');
+  log.scrollTop = 0;
+}
+
+// Heuristic target extractor: try defender's actor first, then keyword match
+// card text against known country names, else default to attacker's country.
+const TARGET_KEYWORDS = {
+  // East Asia
+  'China': /\b(china|prc|chinese|beijing|pla|pla[-\s]?n|plaaf|sinopec)\b/i,
+  'Taiwan': /\b(taiwan|roc|taipei|taiwanese)\b/i,
+  'Japan': /\b(japan|jsdf|tokyo|japanese|kagoshima)\b/i,
+  'South Korea': /\b(south korea|rok|seoul|korean peninsula|south korean)\b/i,
+  'DPRK': /\b(dprk|north korea|pyongyang|kim jong|north korean)\b/i,
+  // Russia
+  'Russia': /\b(russia|russian|moscow|kremlin|putin|fsb|gru)\b/i,
+  // South + SE Asia
+  'India': /\b(india|indian|new delhi|mumbai|bharat)\b/i,
+  'Pakistan': /\b(pakistan|pakistani|islamabad|isi|gwadar|karachi)\b/i,
+  'Bangladesh': /\b(bangladesh|bangladeshi|dhaka|chittagong)\b/i,
+  'Sri Lanka': /\b(sri lanka|sri-lanka|sri lankan|colombo|hambantota)\b/i,
+  'Afghanistan': /\b(afghanistan|afghan|kabul|taliban)\b/i,
+  'Australia': /\b(australia|australian|canberra|adf)\b/i,
+  'Philippines': /\b(philippines|filipino|manila|scarborough)\b/i,
+  'Vietnam': /\b(vietnam|hanoi|vietnamese)\b/i,
+  'Indonesia': /\b(indonesia|jakarta|indonesian)\b/i,
+  'Singapore': /\b(singapore|singaporean)\b/i,
+  // Central Asia
+  'Kazakhstan': /\b(kazakhstan|kazakh|astana|nur-sultan|almaty)\b/i,
+  'Uzbekistan': /\b(uzbekistan|uzbek|tashkent|samarkand)\b/i,
+  // North America + UK + EU
+  'United Kingdom': /\b(united kingdom|uk\b|britain|british|london)\b/i,
+  'United States': /\b(united states|\busa\b|\bus\b|washington|pentagon|white house|american)\b/i,
+  'Canada': /\b(canada|canadian|ottawa|rcmp)\b/i,
+  'France': /\b(france|french|paris|élysée|elysée)\b/i,
+  'Germany': /\b(germany|german|berlin|bundeswehr|deutsch)\b/i,
+  'Poland': /\b(poland|polish|warsaw)\b/i,
+  'Ukraine': /\b(ukraine|ukrainian|kyiv|kiev|donbas|crimea)\b/i,
+  'Italy': /\b(italy|italian|rome|roma)\b/i,
+  'Spain': /\b(spain|spanish|madrid)\b/i,
+  'Netherlands': /\b(netherlands|dutch|amsterdam|the hague|rotterdam|asml)\b/i,
+  'Norway': /\b(norway|norwegian|oslo|svalbard)\b/i,
+  'EU': /\b(european union|\beu\b|brussels|euro\s|eurozone)\b/i,
+  'NATO': /\b(nato|alliance|article 5|brussels)\b/i,
+  // Middle East
+  'Israel': /\b(israel|israeli|jerusalem|tel aviv|idf|mossad)\b/i,
+  'Iran': /\b(iran|iranian|tehran|irgc|persian|hezbollah|houthi)\b/i,
+  'Saudi Arabia': /\b(saudi arabia|saudi|riyadh|aramco|mbs)\b/i,
+  'UAE': /\b(uae|emirates|abu dhabi|dubai|emirati)\b/i,
+  'Turkey': /\b(turkey|turkish|ankara|istanbul|erdogan)\b/i,
+  'Egypt': /\b(egypt|egyptian|cairo|suez)\b/i,
+  'Qatar': /\b(qatar|qatari|doha|al jazeera)\b/i,
+  // Africa
+  'Nigeria': /\b(nigeria|nigerian|abuja|lagos)\b/i,
+  'South Africa': /\b(south africa|south african|pretoria|johannesburg|cape town)\b/i,
+  'Ethiopia': /\b(ethiopia|ethiopian|addis ababa|tigray)\b/i,
+  'Kenya': /\b(kenya|kenyan|nairobi|mombasa)\b/i,
+  'Morocco': /\b(morocco|moroccan|rabat|casablanca)\b/i,
+  'DRC': /\b(drc|democratic republic of congo|congo|kinshasa|katanga)\b/i,
+};
+function deriveTarget(card, attacker, defenderCard) {
+  // 1) Defender's first actor (if any) and not the attacker itself
+  if (defenderCard && defenderCard.actors) {
+    const firstDef = defenderCard.actors[0];
+    if (firstDef && firstDef !== attacker) return firstDef;
+  }
+  // 2) Keyword sweep across title + summary
+  const text = ((card.title || '') + ' ' + (card.summary || '')).toLowerCase();
+  const candidates = [];
+  for (const country in TARGET_KEYWORDS) {
+    if (country === attacker) continue;
+    if (TARGET_KEYWORDS[country].test(text)) candidates.push(country);
+  }
+  if (candidates.length) return candidates[0];
+  // 3) Fall back to a different actor listed on the card
+  const otherActor = (card.actors || []).find(a => a && a !== attacker);
+  if (otherActor) return otherActor;
+  // 4) Nothing — self effect
+  return attacker;
+}
+
+function snapshotDime(countryName) {
+  if (!WORLD.countries[countryName] || !WORLD.countries[countryName].dime) return null;
+  return Object.assign({}, WORLD.countries[countryName].dime);
+}
+function diffDime(before, after) {
+  if (!before || !after) return null;
+  const d = {};
+  let hasDelta = false;
+  for (const k of ['D','I','M','E']) {
+    const dv = (after[k] || 0) - (before[k] || 0);
+    if (Math.abs(dv) >= 0.1) { d[k] = +dv.toFixed(2); hasDelta = true; }
+  }
+  return hasDelta ? d : null;
+}
+
+// Collect every canonical counter to `card` held by any non-current player.
+// Each entry: { owner, card: counterCard, handIdx }.
+function gatherAvailableCounters(card, currentPlayerIdx) {
+  const counters = [];
+  for (const other of GAME.players) {
+    if (other.idx === currentPlayerIdx) continue;
+    const hand = GAME.hands[other.idx] || [];
+    hand.forEach((h, hi) => {
+      if (isCounter(card, h)) counters.push({ owner: other, card: h, handIdx: hi });
+    });
+  }
+  // Sort strongest first so the obvious choice surfaces at the top
+  counters.sort((a, b) => scoreCard(b.card).baseEffectiveness - scoreCard(a.card).baseEffectiveness);
+  return counters;
+}
+
+// Show the modal and call back with the chosen counter ({owner, card, handIdx})
+// or null if the user passed.
+function promptForCounter(playedCard, attacker, options, callback) {
+  const modal   = document.getElementById('counter-modal');
+  const title   = document.getElementById('counter-modal-title');
+  const msg     = document.getElementById('counter-modal-msg');
+  const opts    = document.getElementById('counter-options');
+  const btnPass = document.getElementById('btn-counter-pass');
+
+  title.textContent = 'Counter Available';
+  msg.innerHTML = `<strong>${escapeHtml(attacker.name)} (${escapeHtml(attacker.country)})</strong> ` +
+    `played <strong style="color:var(--accent)">${escapeHtml(playedCard.title)}</strong> ` +
+    `<span style="color:var(--text3)">(${escapeHtml(playedCard.id)})</span>. ` +
+    `The following players hold canonical counters in hand — pick one to play, or pass.`;
+
+  opts.innerHTML = options.map((o, i) => {
+    const s = scoreCard(o.card);
+    return `
+      <div class="counter-option" data-idx="${i}" role="button" tabindex="0">
+        <div class="co-owner">${escapeHtml(o.owner.name)} · ${escapeHtml(o.owner.country)}</div>
+        <div class="co-id">${escapeHtml(o.card.id)}</div>
+        <div class="co-title">${escapeHtml(o.card.title)}</div>
+        <div class="co-meta">
+          <span>${PHASE_LABEL[o.card.phase]}</span>
+          <span>${DOMAIN_LABEL[o.card.domain]}</span>
+          <span>${o.card.risk || '—'}</span>
+          <span>Base ${Math.round(s.baseEffectiveness)}</span>
+        </div>
+        <div class="co-play">▶ Play this counter</div>
+      </div>
+    `;
+  }).join('');
+
+  // Make sure the hover-peek tooltip can't visually overlap the modal
+  if (typeof hideCardTooltip === 'function') hideCardTooltip();
+  modal.hidden = false;
+
+  function cleanup(choice) {
+    modal.hidden = true;
+    btnPass.removeEventListener('click', onPass);
+    document.removeEventListener('keydown', onKey);
+    callback(choice);
+  }
+  function onPass() { cleanup(null); }
+  function onKey(e) {
+    // Escape closes the modal as a pass
+    if (e.key === 'Escape') { e.preventDefault(); cleanup(null); }
+  }
+  btnPass.addEventListener('click', onPass);
+  document.addEventListener('keydown', onKey);
+
+  opts.querySelectorAll('.counter-option').forEach(el => {
+    const pick = (e) => {
+      // Stop the click from bubbling up to anything else
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      const idx = parseInt(el.dataset.idx, 10);
+      cleanup(options[idx]);
+    };
+    el.addEventListener('click', pick);
+    // Keyboard: Enter / Space activates the focused counter card
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') pick(e);
+    });
+  });
+  // Focus the first counter for instant keyboard play
+  const first = opts.querySelector('.counter-option');
+  if (first) first.focus();
+}
+
+function playCard(handIdx) {
+  if (!GAME) return;
+  const p = GAME.players[GAME.currentIdx];
+  const card = GAME.hands[p.idx][handIdx];
+  if (!card) return;
+
+  const counters = gatherAvailableCounters(card, p.idx);
+  if (counters.length > 0) {
+    promptForCounter(card, p, counters, (chosen) => resolveCardPlay(card, handIdx, p, chosen));
+  } else {
+    resolveCardPlay(card, handIdx, p, null);
+  }
+}
+
+function resolveCardPlay(card, handIdx, p, chosenCounter) {
+  const attackerCountry  = p.country;
+  const bestDefender     = chosenCounter ? chosenCounter.card  : null;
+  const bestDefenderOwner = chosenCounter ? chosenCounter.owner : null;
+
+  // Derive target for globe visualisation
+  const targetCountry = deriveTarget(card, attackerCountry, bestDefender);
+
+  // Snapshot DIME + market prev BEFORE applying effects so deltas reflect this play.
+  const beforeAttacker = snapshotDime(attackerCountry);
+  const beforeTarget   = targetCountry !== attackerCountry ? snapshotDime(targetCountry) : null;
+  snapshotMarketPrev(WORLD);
+
+  const res = adjudicate(card, bestDefender, WORLD);
+  applyEffects(card, res.outcome, WORLD, targetCountry);
+
+  const afterAttacker = snapshotDime(attackerCountry);
+  const afterTarget   = targetCountry !== attackerCountry ? snapshotDime(targetCountry) : null;
+  const attackerDeltas = diffDime(beforeAttacker, afterAttacker);
+  const targetDeltas   = diffDime(beforeTarget, afterTarget);
+
+  const summary = bestDefender
+    ? `Countered by ${bestDefenderOwner.name} (${bestDefenderOwner.country}) with ${bestDefender.title}.`
+    : `No counter played.`;
+
+  GAME.log.push({
+    turn: GAME.turn,
+    player: p.name + ' · ' + p.country,
+    attacker: attackerCountry,
+    target: targetCountry,
+    cardId: card.id,
+    cardTitle: card.title,
+    outcome: res.outcome,
+    net: res.net,
+    summary,
+    dimeDeltas: attackerDeltas,
+    targetDimeDeltas: targetDeltas,
+  });
+
+  // Remove card from hand, optionally also remove defender from owner's hand
+  GAME.hands[p.idx].splice(handIdx, 1);
+  if (bestDefender && bestDefenderOwner) {
+    const di = GAME.hands[bestDefenderOwner.idx].indexOf(bestDefender);
+    if (di >= 0) GAME.hands[bestDefenderOwner.idx].splice(di, 1);
+  }
+
+  // Redraw to full hand
+  GAME.hands[p.idx] = [...GAME.hands[p.idx], ...drawHand(p.country).slice(0, HAND_SIZE - GAME.hands[p.idx].length)];
+  if (bestDefenderOwner) {
+    GAME.hands[bestDefenderOwner.idx] = [...GAME.hands[bestDefenderOwner.idx], ...drawHand(bestDefenderOwner.country).slice(0, HAND_SIZE - GAME.hands[bestDefenderOwner.idx].length)];
+  }
+
+  // Per-turn market dynamics — runs once per card play
+  endOfTurnMarketUpdate();
+
+  // Advance turn
+  GAME.currentIdx = (GAME.currentIdx + 1) % GAME.players.length;
+  if (GAME.currentIdx === 0) GAME.turn += 1;
+
+  const ev = {
+    phase: card.phase,
+    actor: attackerCountry,
+    attacker: attackerCountry,
+    target: targetCountry,
+    outcome: res.outcome,
+    net: res.net,
+    cardId: card.id,
+    cardTitle: card.title,
+    summary,
+    dimeDeltas: attackerDeltas || targetDeltas || null,
+    attackerDeltas,
+    targetDeltas,
+  };
+
+  if (GAME.turn > Math.ceil(GAME.totalTurns / GAME.players.length)) {
+    broadcastState(ev);
+    endGame();
+    return;
+  }
+  broadcastState(ev);
+  renderGame();
+}
+
+document.getElementById('btn-skip').addEventListener('click', () => {
+  if (!GAME) return;
+  const p = GAME.players[GAME.currentIdx];
+  // Snapshot prev so the per-turn delta panel doesn't keep re-showing the
+  // previous play's price move on a skipped turn.
+  snapshotMarketPrev(WORLD);
+  GAME.log.push({
+    turn: GAME.turn,
+    player: p.name + ' · ' + p.country,
+    attacker: p.country,
+    target: p.country,
+    cardId: '—',
+    cardTitle: '(skipped turn)',
+    outcome: 'PARTIAL',
+    net: 0,
+    summary: 'Player held back this turn.',
+  });
+  // Markets and risk still drift on a skipped turn
+  endOfTurnMarketUpdate(WORLD);
+  GAME.currentIdx = (GAME.currentIdx + 1) % GAME.players.length;
+  if (GAME.currentIdx === 0) GAME.turn += 1;
+  broadcastState({
+    phase: 'COM',
+    actor: p.country,
+    attacker: p.country,
+    target: p.country,
+    outcome: 'PARTIAL',
+    net: 0,
+    cardId: '—',
+    cardTitle: 'skipped',
+    summary: 'Player held back this turn.',
+  });
+  if (GAME.turn > Math.ceil(GAME.totalTurns / GAME.players.length)) endGame();
+  else renderGame();
+});
+document.getElementById('btn-redraw').addEventListener('click', () => {
+  if (!GAME) return;
+  const p = GAME.players[GAME.currentIdx];
+  GAME.hands[p.idx] = drawHand(p.country);
+  renderGame();
+});
+document.getElementById('btn-endgame').addEventListener('click', endGame);
+
+function endGame() {
+  document.getElementById('play-game').hidden = true;
+  document.getElementById('play-end').hidden = false;
+  const ranked = GAME.players.slice().sort((a,b) => favourabilityScore(WORLD.countries[b.country]) - favourabilityScore(WORLD.countries[a.country]));
+  const board = document.getElementById('final-board');
+  board.innerHTML = ranked.map((pl, i) => {
+    const fav = favourabilityScore(WORLD.countries[pl.country]);
+    const rank = i + 1;
+    const rankColor = rank === 1 ? 'var(--good)' : rank === 2 ? 'var(--accent)' : rank === 3 ? 'var(--warn)' : 'var(--text3)';
+    return `
+      <div class="country-card" style="margin-bottom:10px;">
+        <h4>
+          <span><span style="color:${rankColor}">#${rank}</span> ${escapeHtml(pl.name)} · ${escapeHtml(pl.country)}</span>
+          <span class="fav-score">${fav}</span>
+        </h4>
+        ${['D','I','M','E'].map(k => `
+          <div class="bar-row">
+            <div class="bar-label">${k}</div>
+            <div class="bar-track"><div class="bar-fill ${k.toLowerCase()}" style="width:${WORLD.countries[pl.country].dime[k]}%;"></div></div>
+            <div class="bar-value">${Math.round(WORLD.countries[pl.country].dime[k])}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }).join('');
+}
+
+document.getElementById('btn-new-game').addEventListener('click', () => {
+  GAME = null;
+  WORLD = createWorld();
+  document.getElementById('play-setup').hidden = false;
+  document.getElementById('play-end').hidden = true;
+  document.getElementById('play-game').hidden = true;
+  broadcastState();
+});
+
+// ===========================================================================
+// HAND-CARD HOVER TOOLTIP — shows full card details while hovering in hand
+// ===========================================================================
+const TOOLTIP_OFFSET = 16;       // distance from cursor
+let _ctEl = null;                // cached tooltip element
+function _ctRoot() {
+  if (!_ctEl) _ctEl = document.getElementById('card-tooltip');
+  return _ctEl;
+}
+
+function buildCardTooltipHtml(card) {
+  const s = scoreCard(card);
+  const counters = (typeof COUNTERS === 'object' && COUNTERS[card.id]) || [];
+  const counterChips = counters.length
+    ? counters.slice(0, 12).map(cid => `<span>${escapeHtml(cid)}</span>`).join('')
+      + (counters.length > 12 ? `<span>+${counters.length - 12} more</span>` : '')
+    : `<span class="none">No canonical counters</span>`;
+
+  return `
+    <div class="ct-id">${escapeHtml(card.id || '')}</div>
+    <div class="ct-title">${escapeHtml(card.title || 'Untitled')}</div>
+    <div class="ct-chips">
+      <span class="ph-${card.phase}">${escapeHtml(PHASE_LABEL[card.phase] || card.phase || '—')}</span>
+      <span class="dom-${card.domain}">${escapeHtml(DOMAIN_LABEL[card.domain] || card.domain || '—')}</span>
+      <span class="risk-${card.risk || 'LOW'}">${escapeHtml(card.risk || '—')}</span>
+      <span class="ct-cost">Cost ${s.cost}</span>
+    </div>
+
+    <div class="ct-section-h">Actors</div>
+    <div class="ct-actors">${escapeHtml((card.actors || []).join(' · ')) || '<span style="color:var(--text3)">—</span>'}</div>
+
+    ${card.summary ? `
+      <div class="ct-section-h">Summary</div>
+      <div class="ct-summary">${escapeHtml(card.summary)}</div>
+    ` : ''}
+
+    <div class="ct-section-h">DIME Effectiveness</div>
+    <div class="ct-dime">
+      ${['D','I','M','E'].map(k => `
+        <div class="dime-cell ${k.toLowerCase()}">
+          <div class="dk">${k}</div>
+          <div class="dv">${Math.round(s.dime[k])}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="ct-section-h">Countered By</div>
+    <div class="ct-counters">${counterChips}</div>
+  `;
+}
+
+function showCardTooltip(card, ev) {
+  if (!card) return;
+  const tip = _ctRoot();
+  if (!tip) return;
+  tip.innerHTML = buildCardTooltipHtml(card);
+  tip.hidden = false;
+  positionCardTooltip(ev);
+  // Trigger transition on next frame
+  requestAnimationFrame(() => tip.classList.add('show'));
+}
+
+function hideCardTooltip() {
+  const tip = _ctRoot();
+  if (!tip) return;
+  tip.classList.remove('show');
+  tip.hidden = true;
+}
+
+function positionCardTooltip(ev) {
+  const tip = _ctRoot();
+  if (!tip || tip.hidden) return;
+  const w  = tip.offsetWidth  || 360;
+  const h  = tip.offsetHeight || 320;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // Default: place tooltip to the right of cursor, slightly below
+  let x = ev.clientX + TOOLTIP_OFFSET;
+  let y = ev.clientY + TOOLTIP_OFFSET;
+  // Flip left if it would overflow right edge
+  if (x + w + 8 > vw) x = ev.clientX - w - TOOLTIP_OFFSET;
+  // Flip up if it would overflow bottom edge
+  if (y + h + 8 > vh) y = Math.max(8, vh - h - 8);
+  // Clamp to viewport
+  if (x < 8)  x = 8;
+  if (y < 8)  y = 8;
+
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+
+// Belt-and-braces: hide tooltip on scroll / Escape so it can never get stuck
+window.addEventListener('scroll', hideCardTooltip, true);
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideCardTooltip(); });
+
+// ===========================================================================
+// UTILITY
+// ===========================================================================
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+</script>
+</body>
+</html>

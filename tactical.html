@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Global Wargame · Tactical Operations</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 13px; }
+
+  .layout { display: grid; grid-template-rows: auto auto 1fr; height: 100vh; position: relative; z-index: 2; }
+
+  header.top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 22px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 95%, transparent), color-mix(in srgb, var(--panel) 70%, transparent));
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  header.top h1 { font-size: 14px; font-weight: 300; letter-spacing: 3px; color: var(--text); text-transform: uppercase; }
+  header.top h1 strong { color: var(--accent); font-weight: 700; }
+  header.top .live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 10px var(--good); margin-right: 10px; animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  header.top a.back { color: var(--text3); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  header.top a.back:hover { color: var(--accent); }
+
+  .turn-banner {
+    padding: 10px 22px; background: color-mix(in srgb, var(--panel) 80%, transparent);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; letter-spacing: 2px;
+  }
+  .turn-banner .player-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 12px; border: 1px solid var(--border); border-radius: 3px;
+    font-weight: 700; text-transform: uppercase;
+  }
+  .turn-banner .player-tag .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .turn-banner .phase-lbl { color: var(--text3); font-size: 11px; }
+  .turn-banner .phase-lbl b { color: var(--warn); }
+
+  main.stage { position: relative; display: grid; grid-template-columns: 1fr 340px; overflow: hidden; }
+  .globe-box { position: relative; background: var(--bg); overflow: hidden; cursor: grab; }
+  .globe-box.dragging { cursor: grabbing; }
+  #globe-canvas { display: block; width: 100%; height: 100%; }
+
+  .globe-overlay { position: absolute; top: 14px; left: 18px; font: 10px 'Courier New', monospace; color: var(--text3); letter-spacing: 1px; line-height: 1.6; pointer-events: none; max-width: 280px; }
+  .globe-overlay strong { color: var(--accent); }
+  .hover-readout { position: absolute; top: 14px; right: 18px; font: 10px 'Courier New', monospace; color: var(--text3); letter-spacing: 1px; text-align: right; pointer-events: none; }
+  .hover-readout b { color: var(--warn); }
+
+  .toast { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(220,38,38,0.92); color: #fff; padding: 10px 18px; border-radius: 4px; font-size: 12px; letter-spacing: 1px; font-weight: 600; pointer-events: none; opacity: 0; transition: opacity 0.2s; z-index: 10; }
+  .toast.show { opacity: 1; }
+
+  .ctl-bar {
+    position: absolute; left: 18px; right: 18px; bottom: 14px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: color-mix(in srgb, var(--panel) 78%, transparent);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 14px; backdrop-filter: blur(6px);
+  }
+  .ctl-bar .ctl-hint { color: var(--text2); font-size: 11px; letter-spacing: 0.5px; flex: 1; min-width: 160px; }
+  .ctl-bar button {
+    font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    padding: 8px 14px; border-radius: 4px; border: 1px solid var(--border); cursor: pointer;
+    background: color-mix(in srgb, var(--panel) 60%, transparent); color: var(--text2);
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .ctl-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  .ctl-bar button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .ctl-bar button.primary:hover { background: var(--accent-hov); color: #fff; }
+  .ctl-bar button.danger { color: var(--bad); }
+  .ctl-bar button.danger:hover { border-color: var(--bad); }
+  .ctl-bar button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  aside.rail { display: flex; flex-direction: column; border-left: 1px solid var(--border); background: color-mix(in srgb, var(--panel) 85%, transparent); overflow-y: auto; }
+  .rail-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .rail-section h3 { font-size: 10px; letter-spacing: 3px; color: var(--text3); text-transform: uppercase; margin-bottom: 10px; font-weight: 700; display: flex; justify-content: space-between; }
+
+  .unit-card {
+    padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 4px;
+    background: color-mix(in srgb, var(--panel) 50%, transparent); cursor: pointer; transition: border-color 0.12s;
+  }
+  .unit-card:hover { border-color: var(--text3); }
+  .unit-card.selected { border-color: var(--warn); background: rgba(245,158,11,0.06); }
+  .unit-card.destroyed { opacity: 0.4; text-decoration: line-through; cursor: default; }
+  .uc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .uc-glyph { width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font: 700 10px 'Courier New', monospace; color: #fff; flex-shrink: 0; }
+  .uc-name { flex: 1; font-weight: 600; font-size: 12px; }
+  .uc-hp { font: 600 11px 'Courier New', monospace; color: var(--text3); }
+  .uc-hpbar { height: 4px; border-radius: 2px; background: var(--hairline); margin-bottom: 6px; overflow: hidden; }
+  .uc-hpbar .fill { height: 100%; background: var(--good); transition: width 0.3s; }
+  .uc-meta { font-size: 9.5px; color: var(--text3); letter-spacing: 0.5px; margin-bottom: 6px; }
+  .uc-controls { display: flex; gap: 6px; }
+  .uc-controls button {
+    font-family: inherit; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 3px; border: 1px solid var(--border); cursor: pointer;
+    background: transparent; color: var(--text3);
+  }
+  .uc-controls button:hover { border-color: var(--accent); color: var(--accent); }
+  .uc-controls button.hold { color: var(--warn); border-color: var(--warn); }
+  .uc-path-len { font-size: 9.5px; color: var(--text3); margin-top: 4px; }
+  .uc-ammo { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .ammo-chip {
+    font: 600 9.5px 'Courier New', monospace; letter-spacing: 0.3px;
+    padding: 2px 6px; border-radius: 3px; background: var(--hairline); color: var(--text2);
+  }
+  .ammo-chip b { color: var(--accent); font-weight: 700; margin-left: 3px; }
+  .ammo-chip.empty { opacity: 0.5; }
+  .ammo-chip.empty b { color: var(--bad); }
+  .ammo-chip.unarmed { color: var(--text3); font-style: italic; }
+  .ammo-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 4px 0; border-bottom: 1px solid var(--hairline); color: var(--text2); }
+  .ammo-row:last-child { border-bottom: 0; }
+  .ammo-row .ar-count { font: 700 11px 'Courier New', monospace; color: var(--accent); }
+  .ammo-row.empty .ar-count { color: var(--bad); }
+
+  .contact-card { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin-bottom: 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; }
+  .contact-card.stale { opacity: 0.5; }
+  .cc-glyph { width: 20px; height: 20px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font: 700 9px 'Courier New', monospace; color: #fff; flex-shrink: 0; }
+  .cc-meta { flex: 1; }
+  .cc-age { color: var(--text3); font-size: 9.5px; }
+  .empty-note { color: var(--text3); font-size: 11px; font-style: italic; }
+
+  .log-entry { padding: 8px 10px; margin-bottom: 8px; border-left: 2px solid var(--accent); background: color-mix(in srgb, var(--panel) 50%, transparent); font-size: 10.5px; line-height: 1.5; }
+  .log-entry .le-head { font-weight: 700; color: var(--text2); margin-bottom: 3px; letter-spacing: 0.5px; }
+  .log-entry .le-line { color: var(--text3); }
+  .log-entry .le-line.hit { color: var(--good); }
+  .log-entry .le-line.damaged { color: var(--warn); }
+  .log-entry .le-line.backfire { color: var(--bad); }
+  .log-entry .le-line.winchester { color: var(--text3); font-style: italic; }
+
+  /* ---- Modals ---- */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(5,10,25,0.72); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal-overlay[hidden] { display: none; }
+  .modal-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 30px 34px; max-width: 520px; width: 92%; box-shadow: 0 24px 70px rgba(0,0,0,0.45); max-height: 86vh; overflow-y: auto; }
+  .modal-card h2 { font-size: 18px; letter-spacing: 1px; margin-bottom: 6px; }
+  .modal-card p.sub { color: var(--text2); font-size: 12.5px; margin-bottom: 20px; line-height: 1.6; }
+  .modal-card label { display: block; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); margin-bottom: 5px; margin-top: 14px; }
+  .modal-card label:first-of-type { margin-top: 0; }
+  .modal-card input[type=text], .modal-card select {
+    width: 100%; padding: 9px 11px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-family: inherit; font-size: 13px;
+  }
+  .side-row { display: flex; align-items: center; gap: 10px; }
+  .side-row .dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+  .modal-actions button {
+    font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    padding: 10px 20px; border-radius: 5px; border: 1px solid var(--accent); cursor: pointer;
+    background: var(--accent); color: #fff;
+  }
+  .modal-actions button:hover { background: var(--accent-hov); }
+  .modal-actions button.ghost { background: transparent; color: var(--text2); border-color: var(--border); }
+
+  .handoff-icon { font-size: 40px; text-align: center; margin-bottom: 14px; }
+  .report-list { margin: 14px 0; }
+  .report-list .sec-lbl { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); margin: 14px 0 8px; font-weight: 700; }
+  .report-list .row { font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--hairline); color: var(--text2); }
+  .report-list .row.hit { color: var(--good); }
+  .report-list .row.damaged { color: var(--warn); }
+  .report-list .row.backfire { color: var(--bad); }
+  .report-list .row.winchester { color: var(--text3); font-style: italic; }
+
+  .aar-score { display: flex; gap: 16px; margin: 16px 0; }
+  .aar-side { flex: 1; padding: 14px; border-radius: 6px; border: 1px solid var(--border); text-align: center; }
+  .aar-side .nm { font-weight: 700; letter-spacing: 1px; margin-bottom: 8px; }
+  .aar-side .score { font: 700 26px 'Courier New', monospace; color: var(--accent); }
+  .aar-side .lbl { font-size: 10px; color: var(--text3); letter-spacing: 1px; margin-top: 4px; }
+  .aar-verdict { text-align: center; font-size: 14px; font-weight: 700; letter-spacing: 1px; padding: 10px; margin-top: 10px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); }
+
+  :root[data-theme="light"] header.top, :root[data-theme="light"] .turn-banner, :root[data-theme="light"] aside.rail { border-color: var(--border-strong); }
+  :root[data-theme="light"] .globe-box { border: 1px solid var(--border-strong); border-top: 0; }
+  :root[data-theme="light"] .unit-card, :root[data-theme="light"] .contact-card, :root[data-theme="light"] .log-entry, :root[data-theme="light"] .modal-card { border-color: var(--border-strong); box-shadow: 0 1px 2px rgba(15,30,70,0.04); }
+</style>
+</head>
+<body>
+<div class="layout">
+  <header class="top">
+    <h1><span class="live"></span>Tactical Operations <strong>· DEPLOYMENT</strong></h1>
+    <a class="back" href="home.html">← Back to Command</a>
+  </header>
+
+  <div class="turn-banner">
+    <div id="banner-player" class="player-tag"><span class="dot" style="background:#2563EB"></span><span>—</span></div>
+    <div class="phase-lbl" id="banner-phase">Configuring exercise…</div>
+  </div>
+
+  <main class="stage">
+    <div class="globe-box" id="globe-box">
+      <canvas id="globe-canvas"></canvas>
+      <div class="globe-overlay">
+        <div><strong>TACTICAL DISPLAY</strong> · Orthographic · Click to plot</div>
+        <div id="cam-readout">Lat 0° · Lon 0°</div>
+      </div>
+      <div class="hover-readout" id="hover-readout"></div>
+      <div class="toast" id="toast"></div>
+      <div class="ctl-bar" id="ctl-bar"></div>
+    </div>
+    <aside class="rail">
+      <div class="rail-section">
+        <h3>Force Roster <span id="roster-count"></span></h3>
+        <div id="roster-list"><div class="empty-note">No units yet</div></div>
+      </div>
+      <div class="rail-section">
+        <h3>Armament Status</h3>
+        <div id="armament-list"><div class="empty-note">No units yet</div></div>
+      </div>
+      <div class="rail-section">
+        <h3>Known Contacts <span id="contacts-count"></span></h3>
+        <div id="contacts-list"><div class="empty-note">No enemy intel</div></div>
+      </div>
+      <div class="rail-section" style="flex:1;">
+        <h3>Turn Log</h3>
+        <div id="log-list"><div class="empty-note">Exercise has not begun</div></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setup-modal">
+  <div class="modal-card">
+    <h2>New Tactical Exercise</h2>
+    <p class="sub">Two-player hot-seat operational planning exercise. Each side deploys a joint force package, then plots hidden orders each turn — plans are revealed and resolved simultaneously.</p>
+    <label>Side A callsign</label>
+    <div class="side-row"><span class="dot" style="background:#2563EB"></span><input type="text" id="setup-p1-name" value="Blue Team"></div>
+    <label>Side B callsign</label>
+    <div class="side-row"><span class="dot" style="background:#dc2626"></span><input type="text" id="setup-p2-name" value="Red Team"></div>
+    <label>Exercise length</label>
+    <select id="setup-turns">
+      <option value="4">4 turns</option>
+      <option value="6" selected>6 turns</option>
+      <option value="8">8 turns</option>
+      <option value="10">10 turns</option>
+    </select>
+    <div class="modal-actions">
+      <button id="setup-begin">Begin Deployment</button>
+    </div>
+  </div>
+</div>
+
+<!-- HANDOFF MODAL -->
+<div class="modal-overlay" id="handoff-modal" hidden>
+  <div class="modal-card">
+    <div class="handoff-icon">🔒</div>
+    <h2 id="handoff-title">Pass the device</h2>
+    <p class="sub" id="handoff-sub">Make sure the other player cannot see the screen before continuing.</p>
+    <div class="modal-actions">
+      <button id="handoff-ready">I'm Ready</button>
+    </div>
+  </div>
+</div>
+
+<!-- TURN REPORT MODAL -->
+<div class="modal-overlay" id="report-modal" hidden>
+  <div class="modal-card">
+    <h2 id="report-title">Turn Report</h2>
+    <p class="sub">Both plans have been revealed and resolved.</p>
+    <div class="report-list" id="report-body"></div>
+    <div class="modal-actions">
+      <button id="report-continue">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- AFTER ACTION REPORT MODAL -->
+<div class="modal-overlay" id="aar-modal" hidden>
+  <div class="modal-card">
+    <h2>After-Action Report</h2>
+    <p class="sub" id="aar-sub">Exercise complete.</p>
+    <div class="aar-score" id="aar-score"></div>
+    <div class="aar-verdict" id="aar-verdict"></div>
+    <div class="modal-actions">
+      <button class="ghost" id="aar-restart">New Exercise</button>
+      <button id="aar-home">Back to Command</button>
+    </div>
+  </div>
+</div>
+
+<script src="world-geo-data.js"></script>
+<script>
+// ================================================================
+// GEO DATA (shared with globe.html)
+// ================================================================
+const CONTINENTS = CONTINENTS_DATA;
+const BORDERS    = BORDERS_DATA;
+const CONT_PAIRS = CONTINENTS.map(flat => { const pts = []; for (let i=0;i<flat.length;i+=2) pts.push([flat[i],flat[i+1]]); return pts; });
+const BORDER_PAIRS = BORDERS.map(flat => { const pts = []; for (let i=0;i<flat.length;i+=2) pts.push([flat[i],flat[i+1]]); return pts; });
+
+// ================================================================
+// 3D MATH (ported from globe.html)
+// ================================================================
+const AXIAL_TILT = 23.44 * Math.PI / 180;
+function latLonToXYZ(lat, lon) {
+  const phi = (90 - lat) * Math.PI / 180;
+  const theta = lon * Math.PI / 180;
+  return { x: Math.sin(phi) * Math.sin(theta), y: Math.cos(phi), z: Math.sin(phi) * Math.cos(theta) };
+}
+function xyzToLatLon(p) {
+  const lat = 90 - Math.acos(Math.max(-1, Math.min(1, p.y))) * 180 / Math.PI;
+  const lon = Math.atan2(p.x, p.z) * 180 / Math.PI;
+  return { lat, lon };
+}
+function rotateY(p, a) { const c = Math.cos(a), s = Math.sin(a); return { x: p.x*c + p.z*s, y: p.y, z: -p.x*s + p.z*c }; }
+function rotateX(p, a) { const c = Math.cos(a), s = Math.sin(a); return { x: p.x, y: p.y*c - p.z*s, z: p.y*s + p.z*c }; }
+function rotateZ(p, a) { const c = Math.cos(a), s = Math.sin(a); return { x: p.x*c - p.y*s, y: p.x*s + p.y*c, z: p.z }; }
+function worldToCamera(p, rx, ry) {
+  const t = rotateZ(p, -AXIAL_TILT);
+  return rotateX(rotateY(t, ry), rx);
+}
+// Inverse of worldToCamera: given a camera-space point on the visible
+// hemisphere, recover the world-space (lat,lon). Order matters — undo
+// the transforms in reverse (X, then Y, then Z) or clicks land offset.
+function cameraToWorld(p, rx, ry) {
+  let q = rotateX(p, -rx);
+  q = rotateY(q, -ry);
+  q = rotateZ(q, AXIAL_TILT);
+  return q;
+}
+function screenToLatLon(mx, my, cx, cy, R, rot) {
+  const u = (mx - cx) / R;
+  const v = -(my - cy) / R;
+  const r2 = u*u + v*v;
+  if (r2 > 1) return null;
+  const w = Math.sqrt(Math.max(0, 1 - r2));
+  const world = cameraToWorld({ x: u, y: v, z: w }, rot.rx, rot.ry);
+  return xyzToLatLon(world);
+}
+
+function subsolarPoint(date) {
+  const start = new Date(date.getUTCFullYear(), 0, 0);
+  const diff = date - start + (start.getTimezoneOffset() - date.getTimezoneOffset()) * 60000;
+  const doy = diff / 86400000;
+  const decl = 23.44 * Math.sin(2 * Math.PI * (doy - 81) / 365);
+  const utHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+  const subLon = 180 - utHours * 15;
+  return { lat: decl, lon: subLon };
+}
+function sunVector() { const sp = subsolarPoint(new Date()); return latLonToXYZ(sp.lat, sp.lon); }
+
+// Great-circle destination point given bearing (deg) and distance (km)
+const EARTH_R_KM = 6371;
+function destinationPoint(lat, lon, bearingDeg, distKm) {
+  const d = distKm / EARTH_R_KM;
+  const brng = bearingDeg * Math.PI / 180;
+  const lat1 = lat * Math.PI / 180, lon1 = lon * Math.PI / 180;
+  const lat2 = Math.asin(Math.sin(lat1)*Math.cos(d) + Math.cos(lat1)*Math.sin(d)*Math.cos(brng));
+  const lon2 = lon1 + Math.atan2(Math.sin(brng)*Math.sin(d)*Math.cos(lat1), Math.cos(d) - Math.sin(lat1)*Math.sin(lat2));
+  return { lat: lat2 * 180/Math.PI, lon: ((lon2 * 180/Math.PI) + 540) % 360 - 180 };
+}
+function haversineKm(a, b) {
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const la1 = toRad(a.lat), la2 = toRad(b.lat);
+  const h = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2 * EARTH_R_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// FNV-1a hash — same construction as engine.html's hash(), used to seed
+// deterministic combat variance so replays of a saved log are reproducible.
+function hash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = (h * 16777619) >>> 0; }
+  return h;
+}
+
+// ================================================================
+// LAND MASK + DOTS + STARS
+// ================================================================
+const MASK_W = 720, MASK_H = 360;
+const LAND_MASK = new Uint8Array(MASK_W * MASK_H);
+(function rasterizeMask() {
+  const off = document.createElement('canvas');
+  off.width = MASK_W; off.height = MASK_H;
+  const oc = off.getContext('2d');
+  oc.fillStyle = '#000'; oc.fillRect(0, 0, MASK_W, MASK_H);
+  oc.fillStyle = '#fff';
+  for (const poly of CONT_PAIRS) {
+    oc.beginPath();
+    for (let i = 0; i < poly.length; i++) {
+      const [lat, lon] = poly[i];
+      const x = (lon + 180) / 360 * MASK_W, y = (90 - lat) / 180 * MASK_H;
+      if (i === 0) oc.moveTo(x, y); else oc.lineTo(x, y);
+    }
+    oc.closePath(); oc.fill();
+  }
+  const img = oc.getImageData(0, 0, MASK_W, MASK_H).data;
+  for (let i = 0; i < MASK_W * MASK_H; i++) LAND_MASK[i] = img[i*4] > 127 ? 1 : 0;
+})();
+function isLand(lat, lon) {
+  const x = ((lon + 180) % 360 + 360) % 360 / 360 * MASK_W | 0;
+  const y = (90 - lat) / 180 * MASK_H | 0;
+  if (y < 0 || y >= MASK_H) return false;
+  return LAND_MASK[y * MASK_W + x] === 1;
+}
+const LAND_DOTS = [];
+(function generateLandDots() {
+  for (let lat = -78; lat <= 82; lat += 1.2) {
+    const lonStep = 1.2 / Math.max(0.2, Math.cos(lat * Math.PI / 180));
+    for (let lon = -180; lon <= 180; lon += lonStep) {
+      if (isLand(lat, lon)) { const p = latLonToXYZ(lat, lon); LAND_DOTS.push({ x: p.x, y: p.y, z: p.z, lat }); }
+    }
+  }
+})();
+function mulberry32(a) { return function() { a |= 0; a = a + 0x6D2B79F5 | 0; let t = a; t = Math.imul(t ^ t>>>15, t|1); t ^= t + Math.imul(t ^ t>>>7, t|61); return ((t ^ t>>>14) >>> 0) / 4294967296; }; }
+const STARS = [];
+(function generateStars() { const rng = mulberry32(0x12345); for (let i=0;i<420;i++) STARS.push({ u: rng(), v: rng(), sz: 0.3+rng()*1.6, br: 0.25+rng()*0.75 }); })();
+
+// ================================================================
+// PLATFORM TYPES
+// ================================================================
+// Each type's `loadout` is its actual combat load: specific munitions with
+// quantities. Engagement resolution burns down `unit.ammo` (a per-unit copy
+// of this list) in order — primary standoff weapon first, falling back to
+// secondary/close-in stores once depleted — and the turn log/report name the
+// exact munition expended in each engagement.
+const PLATFORM_TYPES = {
+  CVN:  { label: 'Carrier Strike Group',        domain: 'naval', glyph: 'CV', speed: 550,  sensor: 650, weapon: 400, attack: 90, defense: 70, stealth: 10, hp: 150,
+          loadout: [ { name: 'F/A-18 Strike Package', qty: 8, kind: 'airstrike' }, { name: 'Harpoon Block II ASM', qty: 4, kind: 'missile' } ] },
+  DDG:  { label: 'Aegis Destroyer',             domain: 'naval', glyph: 'DD', speed: 650,  sensor: 500, weapon: 300, attack: 65, defense: 55, stealth: 15, hp: 90,
+          loadout: [ { name: 'SM-6 Standard Missile', qty: 12, kind: 'missile' }, { name: 'Tomahawk TLAM', qty: 6, kind: 'missile' } ] },
+  SSN:  { label: 'Attack Submarine',            domain: 'naval', glyph: 'SS', speed: 500,  sensor: 300, weapon: 150, attack: 70, defense: 30, stealth: 80, hp: 70,
+          loadout: [ { name: 'Mark 48 Heavyweight Torpedo', qty: 6, kind: 'torpedo' }, { name: 'Tomahawk TLAM', qty: 4, kind: 'missile' } ] },
+  LHA:  { label: 'Amphibious Assault Ship',     domain: 'naval', glyph: 'LH', speed: 500,  sensor: 350, weapon: 100, attack: 40, defense: 50, stealth: 10, hp: 110,
+          loadout: [ { name: 'F-35B Strike Package', qty: 4, kind: 'airstrike' } ] },
+  FFG:  { label: 'Frigate',                     domain: 'naval', glyph: 'FF', speed: 600,  sensor: 400, weapon: 200, attack: 45, defense: 40, stealth: 20, hp: 60,
+          loadout: [ { name: 'Harpoon Block II ASM', qty: 6, kind: 'missile' }, { name: 'ESSM', qty: 8, kind: 'missile' } ] },
+  CRV:  { label: 'Corvette / Littoral Combat Ship', domain: 'naval', glyph: 'CR', speed: 700, sensor: 300, weapon: 180, attack: 40, defense: 25, stealth: 30, hp: 40,
+          loadout: [ { name: 'Naval Strike Missile', qty: 8, kind: 'missile' } ] },
+  USV:  { label: 'Unmanned Surface Vessel',     domain: 'naval', glyph: 'UV', speed: 550,  sensor: 200, weapon: 80,  attack: 25, defense: 10, stealth: 60, hp: 20,
+          loadout: [ { name: 'Loitering Munition', qty: 4, kind: 'loitering' } ] },
+  FTR:  { label: 'Fighter Squadron',            domain: 'air',   glyph: 'FT', speed: 1800, sensor: 350, weapon: 150, attack: 60, defense: 35, stealth: 40, hp: 40,
+          loadout: [ { name: 'AIM-120 AMRAAM', qty: 6, kind: 'missile' }, { name: 'GBU-39 Small Diameter Bomb', qty: 4, kind: 'bomb' } ] },
+  BMB:  { label: 'Bomber Wing',                 domain: 'air',   glyph: 'BW', speed: 2200, sensor: 250, weapon: 250, attack: 85, defense: 20, stealth: 55, hp: 50,
+          loadout: [ { name: 'AGM-158 JASSM-ER', qty: 8, kind: 'missile' } ] },
+  AEW:  { label: 'AWACS / ISR',                 domain: 'air',   glyph: 'AW', speed: 900,  sensor: 900, weapon: 0,   attack: 0,  defense: 10, stealth: 5,  hp: 30,
+          loadout: [] },
+  HEL:  { label: 'Attack Helicopter',           domain: 'air',   glyph: 'HL', speed: 400,  sensor: 180, weapon: 60,  attack: 50, defense: 25, stealth: 30, hp: 35,
+          loadout: [ { name: 'AGM-114 Hellfire', qty: 8, kind: 'missile' } ] },
+  UCAV: { label: 'UCAV Drone Swarm',            domain: 'air',   glyph: 'DR', speed: 1200, sensor: 200, weapon: 40,  attack: 45, defense: 10, stealth: 65, hp: 25,
+          loadout: [ { name: 'Loitering Munition Swarm', qty: 20, kind: 'loitering' } ] },
+  MPA:  { label: 'Maritime Patrol Aircraft',    domain: 'air',   glyph: 'MP', speed: 1000, sensor: 700, weapon: 120, attack: 35, defense: 15, stealth: 25, hp: 35,
+          loadout: [ { name: 'Mark 54 Lightweight Torpedo', qty: 4, kind: 'torpedo' } ] },
+  ARM:  { label: 'Armored Brigade',             domain: 'land',  glyph: 'AR', speed: 150,  sensor: 120, weapon: 40,  attack: 55, defense: 60, stealth: 15, hp: 100,
+          loadout: [ { name: '120mm APFSDS Round', qty: 40, kind: 'gun' }, { name: 'Javelin ATGM', qty: 8, kind: 'missile' } ] },
+  LRF:  { label: 'Long-Range Fires Battery',    domain: 'land',  glyph: 'LR', speed: 80,   sensor: 150, weapon: 500, attack: 75, defense: 25, stealth: 35, hp: 45,
+          loadout: [ { name: 'ATACMS / PrSM Missile', qty: 12, kind: 'missile' } ] },
+  SAM:  { label: 'Air Defense Battery',         domain: 'land',  glyph: 'AD', speed: 60,   sensor: 250, weapon: 200, attack: 50, defense: 45, stealth: 25, hp: 55,
+          loadout: [ { name: 'Patriot PAC-3 Interceptor', qty: 16, kind: 'missile' } ] },
+  SOF:  { label: 'Special Forces Team',         domain: 'land',  glyph: 'SF', speed: 40,   sensor: 100, weapon: 30,  attack: 35, defense: 20, stealth: 70, hp: 30,
+          loadout: [ { name: 'Javelin ATGM', qty: 4, kind: 'missile' } ] },
+};
+const DEFAULT_ROSTER = ['CVN','DDG','SSN','FTR','UCAV','BMB','AEW','ARM','LRF','SAM'];
+const CONTACT_DECAY_TURNS = 2; // turns a stale contact remains visible before expiring
+
+// ================================================================
+// GAME STATE
+// ================================================================
+const game = {
+  phase: 'setup',      // setup, deploy, orders, resolving, report, gameover
+  turn: 1,
+  totalTurns: 6,
+  players: [],          // [{id, name, color, homeBase, deployPointer}]
+  units: [],
+  deployIdx: 0,
+  ordersIdx: 0,
+  selectedUnitId: null,
+  knownContacts: [{}, {}],
+  log: [],
+  deployRadiusKm: 900,
+  pendingHandoffThen: null,
+  moveArcs: [],
+  pulses: [],
+  flashes: [],
+};
+
+const state = {
+  rotY: 0,
+  userRotY: -0.524,
+  userRotX: 0.436,
+  autoRotate: false,
+  isDragging: false,
+  dragStartX: 0, dragStartY: 0, dragStartRotY: 0, dragStartRotX: 0, dragMoved: false,
+  zoom: 1.0,
+  markerScreenPos: {},
+  hoverLatLon: null,
+};
+
+function getRotation() { return { rx: state.userRotX, ry: state.rotY + state.userRotY }; }
+
+// ================================================================
+// CANVAS SETUP
+// ================================================================
+const canvas = document.getElementById('globe-canvas');
+const ctx = canvas.getContext('2d');
+function resize() {
+  const boxEl = document.getElementById('globe-box');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = boxEl.clientWidth * dpr; canvas.height = boxEl.clientHeight * dpr;
+  canvas.style.width = boxEl.clientWidth + 'px'; canvas.style.height = boxEl.clientHeight + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ================================================================
+// PALETTE + DRAWING (ported from globe.html)
+// ================================================================
+function getEarthPalette() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (dark) return {
+    star: (br, tw) => `rgba(200,220,255,${br*tw})`,
+    haloStops: ['rgba(120,180,255,0.35)','rgba(96,165,250,0.12)','rgba(96,165,250,0)'],
+    ocean: '#041228',
+    litStops: ['rgba(130,180,240,0.85)','rgba(60,120,200,0.55)','rgba(20,50,100,0.35)','rgba(4,18,40,0)'],
+    shadowStops: ['rgba(0,0,0,0.55)','rgba(0,0,0,0)'],
+    rimStops: ['rgba(96,165,250,0)','rgba(140,200,255,0.4)'],
+    grid: 'rgba(96,165,250,0.09)', equator: 'rgba(96,165,250,0.22)',
+    border: sDot => `rgba(255,220,140,${0.15+sDot*0.5})`,
+    landRGB: dayLight => [60+dayLight*70, 90+dayLight*100, 130+dayLight*50],
+  };
+  return {
+    star: (br, tw) => `rgba(120,140,170,${br*tw*0.4})`,
+    haloStops: ['rgba(150,170,200,0.40)','rgba(120,140,180,0.14)','rgba(120,140,180,0)'],
+    ocean: '#8E99AC',
+    litStops: ['rgba(255,250,235,0.32)','rgba(220,225,235,0.20)','rgba(170,180,200,0.10)','rgba(130,140,160,0)'],
+    shadowStops: ['rgba(30,40,60,0.45)','rgba(30,40,60,0)'],
+    rimStops: ['rgba(70,90,130,0)','rgba(50,70,110,0.55)'],
+    grid: 'rgba(70,90,130,0.18)', equator: 'rgba(70,90,130,0.40)',
+    border: sDot => `rgba(40,50,75,${0.30+sDot*0.35})`,
+    landRGB: dayLight => [95+dayLight*35, 105+dayLight*35, 120+dayLight*35],
+  };
+}
+function drawStars(cssW, cssH) {
+  const P = getEarthPalette();
+  for (const s of STARS) {
+    const x = s.u*cssW, y = s.v*cssH;
+    const tw = 0.8 + 0.2*Math.sin(performance.now()*0.001 + s.u*40);
+    ctx.fillStyle = P.star(s.br, tw);
+    ctx.fillRect(x-s.sz/2, y-s.sz/2, s.sz, s.sz);
+  }
+}
+function sunInCamera(rot) { return worldToCamera(sunVector(), rot.rx, rot.ry); }
+function drawOcean(cx, cy, R, rot) {
+  const P = getEarthPalette();
+  const haloGrad = ctx.createRadialGradient(cx, cy, R*0.995, cx, cy, R*1.28);
+  haloGrad.addColorStop(0, P.haloStops[0]); haloGrad.addColorStop(0.4, P.haloStops[1]); haloGrad.addColorStop(1, P.haloStops[2]);
+  ctx.fillStyle = haloGrad; ctx.beginPath(); ctx.arc(cx, cy, R*1.28, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = P.ocean; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.fill();
+  const sun = sunInCamera(rot);
+  if (sun.z > -0.2) {
+    const sx = cx + sun.x*R, sy = cy - sun.y*R;
+    const lit = ctx.createRadialGradient(sx, sy, R*0.05, sx, sy, R*1.4);
+    lit.addColorStop(0, P.litStops[0]); lit.addColorStop(0.25, P.litStops[1]); lit.addColorStop(0.6, P.litStops[2]); lit.addColorStop(1, P.litStops[3]);
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.clip();
+    ctx.fillStyle = lit; ctx.fillRect(cx-R, cy-R, R*2, R*2); ctx.restore();
+  }
+  const nx = cx - sun.x*R, ny = cy + sun.y*R;
+  const shadow = ctx.createRadialGradient(nx, ny, 0, nx, ny, R*1.5);
+  shadow.addColorStop(0, P.shadowStops[0]); shadow.addColorStop(0.65, P.shadowStops[1]);
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.clip();
+  ctx.fillStyle = shadow; ctx.fillRect(cx-R, cy-R, R*2, R*2); ctx.restore();
+  const rimGrad = ctx.createRadialGradient(cx, cy, R*0.93, cx, cy, R);
+  rimGrad.addColorStop(0, P.rimStops[0]); rimGrad.addColorStop(1, P.rimStops[1]);
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.clip();
+  ctx.fillStyle = rimGrad; ctx.fillRect(cx-R, cy-R, R*2, R*2); ctx.restore();
+}
+function drawGrid(cx, cy, R, rot) {
+  const P = getEarthPalette();
+  ctx.lineWidth = 1; ctx.strokeStyle = P.grid;
+  for (let lon = -180; lon < 180; lon += 30) {
+    let started = false; ctx.beginPath();
+    for (let lat = -90; lat <= 90; lat += 3) {
+      const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+      if (p.z < 0) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+      const x = cx + p.x*R, y = cy - p.y*R;
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  for (let lat = -60; lat <= 60; lat += 30) {
+    let started = false; ctx.beginPath();
+    for (let lon = -180; lon <= 180; lon += 3) {
+      const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+      if (p.z < 0) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+      const x = cx + p.x*R, y = cy - p.y*R;
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = P.equator;
+  let started = false; ctx.beginPath();
+  for (let lon = -180; lon <= 180; lon += 2) {
+    const p = worldToCamera(latLonToXYZ(0, lon), rot.rx, rot.ry);
+    if (p.z < 0) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+    const x = cx + p.x*R, y = cy - p.y*R;
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+function drawLand(cx, cy, R, rot) {
+  const P = getEarthPalette();
+  const sun = sunVector();
+  const s = Math.max(0.9, R*0.0065);
+  for (let i = 0; i < LAND_DOTS.length; i++) {
+    const ld = LAND_DOTS[i];
+    const pCam = worldToCamera(ld, rot.rx, rot.ry);
+    if (pCam.z < 0.02) continue;
+    const sDot = ld.x*sun.x + ld.y*sun.y + ld.z*sun.z;
+    const dayLight = Math.max(0, sDot);
+    const viewLight = Math.max(0.15, pCam.z*0.6 + 0.4);
+    const x = cx + pCam.x*R, y = cy - pCam.y*R;
+    const [r,g,b] = P.landRGB(dayLight);
+    const a = Math.min(1, viewLight * (0.4 + dayLight*0.7));
+    ctx.fillStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
+    ctx.fillRect(x-s/2, y-s/2, s, s);
+  }
+}
+function drawBorders(cx, cy, R, rot) {
+  const P = getEarthPalette();
+  const sun = sunVector();
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < BORDER_PAIRS.length; i++) {
+    const path = BORDER_PAIRS[i];
+    let started = false;
+    ctx.beginPath();
+    for (let j = 0; j < path.length; j++) {
+      const [lat, lon] = path[j];
+      const world = latLonToXYZ(lat, lon);
+      const cam = worldToCamera(world, rot.rx, rot.ry);
+      if (cam.z < 0.02) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+      const sDot = Math.max(0, world.x*sun.x + world.y*sun.y + world.z*sun.z);
+      if (!started) { ctx.strokeStyle = P.border(sDot); ctx.moveTo(cx+cam.x*R, cy-cam.y*R); started = true; }
+      else ctx.lineTo(cx+cam.x*R, cy-cam.y*R);
+    }
+    if (started) ctx.stroke();
+  }
+}
+function drawArc(cx, cy, R, rot, from, to, t, color, lw) {
+  const a = latLonToXYZ(from[0], from[1]), b = latLonToXYZ(to[0], to[1]);
+  const dot = Math.max(-1, Math.min(1, a.x*b.x + a.y*b.y + a.z*b.z));
+  const omega = Math.acos(dot);
+  if (omega < 1e-4) return;
+  const sinOm = Math.sin(omega);
+  const steps = 60, tClip = Math.min(t, 1);
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 2;
+  ctx.globalAlpha = Math.max(0.1, 1 - Math.max(0, t-1)*1.4);
+  ctx.beginPath(); let started = false;
+  for (let i = 0; i <= Math.floor(steps*tClip); i++) {
+    const s = i/steps;
+    const w1 = Math.sin((1-s)*omega)/sinOm, w2 = Math.sin(s*omega)/sinOm;
+    const lift = 1 + Math.sin(s*Math.PI)*(0.04 + omega*0.03);
+    const sp = { x: (a.x*w1+b.x*w2)*lift, y: (a.y*w1+b.y*w2)*lift, z: (a.z*w1+b.z*w2)*lift };
+    const p = worldToCamera(sp, rot.rx, rot.ry);
+    if (p.z < -0.15) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+    const x = cx+p.x*R, y = cy-p.y*R;
+    if (!started) { ctx.moveTo(x,y); started = true; } else ctx.lineTo(x,y);
+  }
+  ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawPulse(cx, cy, R, rot, lat, lon, t, color) {
+  const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+  if (p.z < 0) return;
+  const x = cx+p.x*R, y = cy-p.y*R;
+  const radius = 6 + t*50;
+  ctx.strokeStyle = color; ctx.globalAlpha = Math.max(0, 1-t); ctx.lineWidth = 2.5 - t*2;
+  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI*2); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawFlash(cx, cy, R, rot, lat, lon, t, color) {
+  const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+  if (p.z < 0) return;
+  const x = cx+p.x*R, y = cy-p.y*R;
+  const radius = 14 * (1 - t*0.3);
+  const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = Math.max(0, 1-t); ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+}
+// Geodesic circle (deployment zone, sensor/range rings) — great-circle
+// small-circle around a center point, clipped to the visible hemisphere.
+function drawGeodesicCircle(cx, cy, R, rot, centerLat, centerLon, radiusKm, color, dashed) {
+  if (radiusKm <= 0) return;
+  ctx.strokeStyle = color; ctx.lineWidth = 1.2;
+  if (dashed) ctx.setLineDash([5,4]); else ctx.setLineDash([]);
+  let started = false; ctx.beginPath();
+  for (let b = 0; b <= 360; b += 4) {
+    const pt = destinationPoint(centerLat, centerLon, b, radiusKm);
+    const p = worldToCamera(latLonToXYZ(pt.lat, pt.lon), rot.rx, rot.ry);
+    if (p.z < -0.05) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+    const x = cx+p.x*R, y = cy-p.y*R;
+    if (!started) { ctx.moveTo(x,y); started = true; } else ctx.lineTo(x,y);
+  }
+  if (started) ctx.stroke();
+  ctx.setLineDash([]);
+}
+function projectPoint(cx, cy, R, rot, lat, lon) {
+  const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+  if (p.z < -0.05) return null;
+  return { x: cx+p.x*R, y: cy-p.y*R, z: p.z, behind: p.z < 0 };
+}
+
+function drawUnitMarker(cx, cy, R, rot, unit, opts) {
+  opts = opts || {};
+  const pos = projectPoint(cx, cy, R, rot, unit.pos.lat, unit.pos.lon);
+  const key = 'u:' + unit.id;
+  if (pos && !pos.behind) state.markerScreenPos[key] = pos; else delete state.markerScreenPos[key];
+  if (!pos) return;
+  const t = PLATFORM_TYPES[unit.type];
+  const owner = game.players[unit.ownerId];
+  const alpha = pos.behind ? (opts.stale ? 0.15 : 0.25) : (opts.stale ? 0.45 : 1.0);
+  const color = opts.stale ? '#8a8f9c' : owner.color;
+  ctx.globalAlpha = alpha;
+  if (opts.selected) {
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, 20, 0, Math.PI*2);
+    ctx.strokeStyle = '#d97706'; ctx.setLineDash([4,3]); ctx.lineWidth = 1.4; ctx.stroke(); ctx.setLineDash([]);
+  }
+  const g = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 13);
+  g.addColorStop(0, color + 'cc'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(pos.x, pos.y, 13, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(pos.x, pos.y, 8, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.font = '700 8px "Courier New", monospace'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(t.glyph, pos.x, pos.y + 0.5);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  if (!pos.behind && !opts.stale) {
+    const frac = Math.max(0, unit.hp / t.hp);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(pos.x-12, pos.y+11, 24, 3);
+    ctx.fillStyle = frac > 0.5 ? '#16a34a' : frac > 0.2 ? '#d97706' : '#dc2626';
+    ctx.fillRect(pos.x-12, pos.y+11, 24*frac, 3);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function render() {
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  ctx.clearRect(0, 0, cssW, cssH);
+  const cx = cssW/2, cy = cssH/2;
+  const R = Math.min(cx, cy) * 0.85 * state.zoom;
+  const rot = getRotation();
+
+  drawStars(cssW, cssH);
+  drawOcean(cx, cy, R, rot);
+  drawGrid(cx, cy, R, rot);
+  drawLand(cx, cy, R, rot);
+  drawBorders(cx, cy, R, rot);
+
+  // Deployment zone overlay
+  if (game.phase === 'deploy') {
+    const p = game.players[game.deployIdx];
+    if (p && p.homeBase) drawGeodesicCircle(cx, cy, R, rot, p.homeBase.lat, p.homeBase.lon, game.deployRadiusKm, p.color, true);
+  }
+
+  // Path preview + range ring while plotting orders
+  if (game.phase === 'orders' && game.selectedUnitId) {
+    const u = unitById(game.selectedUnitId);
+    if (u && u.ownerId === game.ordersIdx) {
+      const t = PLATFORM_TYPES[u.type];
+      const pts = [u.pos, ...u.path];
+      let used = 0;
+      for (let i = 0; i < pts.length-1; i++) used += haversineKm(pts[i], pts[i+1]);
+      const remain = Math.max(0, t.speed - used);
+      const tip = pts[pts.length-1];
+      drawGeodesicCircle(cx, cy, R, rot, tip.lat, tip.lon, remain, game.players[u.ownerId].color, true);
+      ctx.setLineDash([6,4]); ctx.strokeStyle = game.players[u.ownerId].color; ctx.lineWidth = 1.6;
+      ctx.beginPath(); let started = false;
+      for (const pt of pts) {
+        const pp = projectPoint(cx, cy, R, rot, pt.lat, pt.lon);
+        if (!pp) { started = false; continue; }
+        if (!started) { ctx.moveTo(pp.x, pp.y); started = true; } else ctx.lineTo(pp.x, pp.y);
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+
+  state.markerScreenPos = {};
+  const visible = getVisibleUnits();
+  for (const v of visible) drawUnitMarker(cx, cy, R, rot, v.unit, { stale: v.stale, selected: v.unit.id === game.selectedUnitId });
+
+  for (let i = game.moveArcs.length-1; i >= 0; i--) {
+    const a = game.moveArcs[i];
+    drawArc(cx, cy, R, rot, a.from, a.to, a.t, a.color, 1.6);
+    a.t += 0.02; if (a.t > 1.6) game.moveArcs.splice(i, 1);
+  }
+  for (let i = game.pulses.length-1; i >= 0; i--) {
+    const pu = game.pulses[i];
+    drawPulse(cx, cy, R, rot, pu.lat, pu.lon, pu.t, pu.color);
+    pu.t += 0.018; if (pu.t > 1.3) game.pulses.splice(i, 1);
+  }
+  for (let i = game.flashes.length-1; i >= 0; i--) {
+    const f = game.flashes[i];
+    drawFlash(cx, cy, R, rot, f.lat, f.lon, f.t, f.color);
+    f.t += 0.02; if (f.t > 1.2) game.flashes.splice(i, 1);
+  }
+
+  const ryDeg = ((state.rotY + state.userRotY) * 180/Math.PI) % 360;
+  const rxDeg = (state.userRotX * 180/Math.PI);
+  document.getElementById('cam-readout').textContent = 'Lat ' + rxDeg.toFixed(0) + '° · Lon ' + (-ryDeg).toFixed(0) + '°';
+
+  if (state.autoRotate && !state.isDragging) state.rotY += 0.0011;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+// ================================================================
+// FOG OF WAR
+// ================================================================
+function unitById(id) { return game.units.find(u => u.id === id); }
+function activeViewerId() {
+  if (game.phase === 'deploy') return game.deployIdx;
+  if (game.phase === 'orders') return game.ordersIdx;
+  return null; // resolving/report/gameover -> full reveal
+}
+function getVisibleUnits() {
+  const viewer = activeViewerId();
+  if (viewer === null) return game.units.filter(u => u.alive && u.deployed).map(u => ({ unit: u, stale: false }));
+  const out = [];
+  for (const u of game.units) {
+    if (!u.alive || !u.deployed) continue;
+    if (u.ownerId === viewer) out.push({ unit: u, stale: false });
+  }
+  const contacts = game.knownContacts[viewer];
+  for (const cid in contacts) {
+    const c = contacts[cid];
+    const u = unitById(cid);
+    if (!u || !u.alive) continue;
+    out.push({ unit: { ...u, pos: { lat: c.lat, lon: c.lon } }, stale: !c.fresh });
+  }
+  return out;
+}
+
+// ================================================================
+// UI RENDER HELPERS
+// ================================================================
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 1600);
+}
+function renderBanner() {
+  const tag = document.getElementById('banner-player');
+  const phaseLbl = document.getElementById('banner-phase');
+  const titleEl = document.querySelector('header.top h1');
+  if (game.phase === 'setup') {
+    tag.innerHTML = '<span class="dot" style="background:#8a8f9c"></span><span>—</span>';
+    phaseLbl.textContent = 'Configuring exercise…';
+    titleEl.innerHTML = '<span class="live"></span>Tactical Operations <strong>· SETUP</strong>';
+    return;
+  }
+  if (game.phase === 'deploy') {
+    const p = game.players[game.deployIdx];
+    tag.innerHTML = `<span class="dot" style="background:${p.color}"></span><span>${escapeHtml(p.name)}</span>`;
+    phaseLbl.innerHTML = `<b>DEPLOYMENT</b> · place your force`;
+    titleEl.innerHTML = '<span class="live"></span>Tactical Operations <strong>· DEPLOYMENT</strong>';
+    return;
+  }
+  if (game.phase === 'orders') {
+    const p = game.players[game.ordersIdx];
+    tag.innerHTML = `<span class="dot" style="background:${p.color}"></span><span>${escapeHtml(p.name)}</span>`;
+    phaseLbl.innerHTML = `Turn <b>${game.turn}</b> / ${game.totalTurns} · ORDERS — plans are hidden from the other side`;
+    titleEl.innerHTML = '<span class="live"></span>Tactical Operations <strong>· ORDERS</strong>';
+    return;
+  }
+  if (game.phase === 'resolving') {
+    tag.innerHTML = `<span class="dot" style="background:#8a8f9c"></span><span>Both sides</span>`;
+    phaseLbl.innerHTML = `Turn <b>${game.turn}</b> / ${game.totalTurns} · RESOLVING…`;
+    titleEl.innerHTML = '<span class="live"></span>Tactical Operations <strong>· RESOLVING</strong>';
+    return;
+  }
+  if (game.phase === 'report') {
+    tag.innerHTML = `<span class="dot" style="background:#8a8f9c"></span><span>Both sides</span>`;
+    phaseLbl.innerHTML = `Turn <b>${game.turn}</b> / ${game.totalTurns} · REVIEW`;
+    return;
+  }
+  if (game.phase === 'gameover') {
+    tag.innerHTML = `<span class="dot" style="background:#8a8f9c"></span><span>Exercise complete</span>`;
+    phaseLbl.textContent = 'After-action review';
+    titleEl.innerHTML = '<span class="live"></span>Tactical Operations <strong>· COMPLETE</strong>';
+  }
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderRoster() {
+  const viewer = activeViewerId();
+  const listEl = document.getElementById('roster-list');
+  const countEl = document.getElementById('roster-count');
+  let units;
+  if (viewer !== null) units = game.units.filter(u => u.ownerId === viewer);
+  else units = game.units; // resolving/report shows both — split below
+  if (viewer === null) {
+    countEl.textContent = '';
+    listEl.innerHTML = game.players.map(p => {
+      const own = game.units.filter(u => u.ownerId === p.id);
+      return `<div style="font-size:10px;letter-spacing:1px;color:${p.color};font-weight:700;margin:8px 0 4px;">${escapeHtml(p.name).toUpperCase()}</div>` +
+        own.map(u => unitCardHtml(u, false)).join('');
+    }).join('');
+    return;
+  }
+  const alive = units.filter(u => u.alive).length;
+  countEl.textContent = `(${alive}/${units.length})`;
+  if (!units.length) { listEl.innerHTML = '<div class="empty-note">No units yet</div>'; return; }
+  listEl.innerHTML = units.map(u => unitCardHtml(u, game.phase === 'orders')).join('');
+  if (game.phase === 'orders') {
+    listEl.querySelectorAll('.unit-card').forEach(card => {
+      const id = card.dataset.unit;
+      card.addEventListener('click', e => {
+        if (e.target.tagName === 'BUTTON') return;
+        const u = unitById(id);
+        if (u && u.alive) { game.selectedUnitId = (game.selectedUnitId === id) ? null : id; renderAll(); }
+      });
+      card.querySelectorAll('button').forEach(btn => btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const u = unitById(id);
+        if (!u) return;
+        if (btn.dataset.act === 'clear') { u.path = []; showToast('Path cleared'); }
+        if (btn.dataset.act === 'stance') { u.stance = u.stance === 'engage' ? 'hold' : 'engage'; }
+        renderAll();
+      }));
+    });
+  }
+}
+function unitCardHtml(u, interactive) {
+  const t = PLATFORM_TYPES[u.type];
+  const owner = game.players[u.ownerId];
+  const frac = Math.max(0, u.hp / t.hp);
+  const barColor = !u.alive ? '#8a8f9c' : frac > 0.5 ? 'var(--good)' : frac > 0.2 ? 'var(--warn)' : 'var(--bad)';
+  let pathLen = '';
+  if (interactive && u.alive) {
+    const pts = [u.pos, ...u.path];
+    let used = 0;
+    for (let i = 0; i < pts.length-1; i++) used += haversineKm(pts[i], pts[i+1]);
+    pathLen = `<div class="uc-path-len">Route: ${used.toFixed(0)} / ${t.speed} km${u.path.length ? ' · ' + u.path.length + ' waypoint(s)' : ' · holding'}</div>`;
+  }
+  return `<div class="unit-card ${u.id === game.selectedUnitId ? 'selected' : ''} ${!u.alive ? 'destroyed' : ''}" data-unit="${u.id}">
+    <div class="uc-head">
+      <span class="uc-glyph" style="background:${owner.color}">${t.glyph}</span>
+      <span class="uc-name">${t.label}</span>
+      <span class="uc-hp">${Math.max(0,Math.round(u.hp))}/${t.hp}</span>
+    </div>
+    <div class="uc-hpbar"><div class="fill" style="width:${frac*100}%;background:${barColor}"></div></div>
+    <div class="uc-meta">SPD ${t.speed} · SEN ${t.sensor} · WPN ${t.weapon || '—'} · ATK ${t.attack} · DEF ${t.defense} · STL ${t.stealth}</div>
+    ${armamentHtml(u)}
+    ${interactive && u.alive ? `<div class="uc-controls">
+      <button data-act="clear">Clear Path</button>
+      <button data-act="stance" class="${u.stance === 'hold' ? 'hold' : ''}">${u.stance === 'hold' ? 'Hold Fire' : 'Engage'}</button>
+    </div>${pathLen}` : ''}
+  </div>`;
+}
+function armamentHtml(u) {
+  if (!u.ammo.length) return `<div class="uc-ammo"><span class="ammo-chip unarmed">Unarmed — ISR / battle-management only</span></div>`;
+  return `<div class="uc-ammo">${u.ammo.map(a =>
+    `<span class="ammo-chip${a.remaining === 0 ? ' empty' : ''}">${escapeHtml(a.name)} <b>${a.remaining}/${a.qty}</b></span>`
+  ).join('')}</div>`;
+}
+
+function aggregateAmmo(units) {
+  const map = {};
+  for (const u of units) {
+    if (!u.alive) continue;
+    for (const a of u.ammo) {
+      if (!map[a.name]) map[a.name] = { remaining: 0, qty: 0 };
+      map[a.name].remaining += a.remaining;
+      map[a.name].qty += a.qty;
+    }
+  }
+  return map;
+}
+function armamentRowsHtml(units) {
+  const map = aggregateAmmo(units);
+  const names = Object.keys(map);
+  if (!names.length) return '<div class="empty-note">No armed munitions in force</div>';
+  return names.map(n => {
+    const m = map[n];
+    return `<div class="ammo-row${m.remaining === 0 ? ' empty' : ''}"><span class="ar-name">${escapeHtml(n)}</span><span class="ar-count">${m.remaining}/${m.qty}</span></div>`;
+  }).join('');
+}
+function renderArmamentStatus() {
+  const viewer = activeViewerId();
+  const listEl = document.getElementById('armament-list');
+  if (viewer === null) {
+    listEl.innerHTML = game.players.map(p => {
+      const own = game.units.filter(u => u.ownerId === p.id);
+      return `<div style="font-size:10px;letter-spacing:1px;color:${p.color};font-weight:700;margin:8px 0 4px;">${escapeHtml(p.name).toUpperCase()}</div>` + armamentRowsHtml(own);
+    }).join('');
+    return;
+  }
+  const own = game.units.filter(u => u.ownerId === viewer);
+  listEl.innerHTML = armamentRowsHtml(own);
+}
+
+function renderContacts() {
+  const viewer = activeViewerId();
+  const listEl = document.getElementById('contacts-list');
+  const countEl = document.getElementById('contacts-count');
+  if (viewer === null) { listEl.innerHTML = '<div class="empty-note">Full visibility during resolution</div>'; countEl.textContent = ''; return; }
+  const contacts = game.knownContacts[viewer];
+  const ids = Object.keys(contacts);
+  countEl.textContent = ids.length ? `(${ids.length})` : '';
+  if (!ids.length) { listEl.innerHTML = '<div class="empty-note">No enemy intel yet</div>'; return; }
+  listEl.innerHTML = ids.map(id => {
+    const c = contacts[id];
+    const t = PLATFORM_TYPES[c.type];
+    const owner = game.players[c.ownerId];
+    return `<div class="contact-card ${c.fresh ? '' : 'stale'}">
+      <span class="cc-glyph" style="background:${owner.color}">${t.glyph}</span>
+      <span class="cc-meta">${t.label}</span>
+      <span class="cc-age">${c.fresh ? 'tracking' : 'seen T' + c.turnSeen}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderLog() {
+  const listEl = document.getElementById('log-list');
+  if (!game.log.length) { listEl.innerHTML = '<div class="empty-note">Exercise has not begun</div>'; return; }
+  listEl.innerHTML = game.log.slice().reverse().map(entry => {
+    const lines = [];
+    for (const m of entry.moves) lines.push(`<div class="le-line">${escapeHtml(game.players[m.ownerId].name)} ${PLATFORM_TYPES[m.type].label} moved ${m.distance.toFixed(0)}km</div>`);
+    for (const d of entry.detections) lines.push(`<div class="le-line">${escapeHtml(game.players[d.by].name)} detected ${PLATFORM_TYPES[d.type].label}</div>`);
+    for (const e of entry.engagements) {
+      const cls = e.outcome === 'HIT' ? 'hit' : e.outcome === 'DAMAGED' ? 'damaged' : e.outcome === 'BACKFIRE' ? 'backfire' : 'winchester';
+      lines.push(`<div class="le-line ${cls}">${escapeHtml(e.summary)}</div>`);
+    }
+    return `<div class="log-entry"><div class="le-head">TURN ${entry.turn}</div>${lines.join('') || '<div class="le-line">No contact.</div>'}</div>`;
+  }).join('');
+}
+
+function renderControls() {
+  const bar = document.getElementById('ctl-bar');
+  if (game.phase === 'deploy') {
+    const p = game.players[game.deployIdx];
+    const pending = p.roster.filter(u => !u.deployed);
+    let hint;
+    if (!p.homeBase) hint = `Click the globe to set ${escapeHtml(p.name)}'s home base.`;
+    else if (pending.length) hint = `Click within the zone to place: <b>${PLATFORM_TYPES[pending[0].type].label}</b> (${pending.length} remaining)`;
+    else hint = `All units deployed.`;
+    bar.innerHTML = `<div class="ctl-hint">${hint}</div>
+      <button id="ctl-undo" ${!p.homeBase ? 'disabled' : ''}>Undo Last</button>
+      <button id="ctl-done" class="primary" ${pending.length ? 'disabled' : ''}>Confirm Deployment</button>`;
+    document.getElementById('ctl-undo').onclick = () => undoDeployment(p);
+    document.getElementById('ctl-done').onclick = () => confirmDeployment();
+    return;
+  }
+  if (game.phase === 'orders') {
+    const sel = game.selectedUnitId ? unitById(game.selectedUnitId) : null;
+    const hint = sel
+      ? `Plotting route for <b>${PLATFORM_TYPES[sel.type].label}</b> — click the globe to add waypoints within range.`
+      : `Select a unit (list or globe) to plot its route this turn.`;
+    bar.innerHTML = `<div class="ctl-hint">${hint}</div>
+      <button id="ctl-deselect" ${sel ? '' : 'disabled'}>Deselect</button>
+      <button id="ctl-lock" class="primary">Lock In Orders</button>`;
+    document.getElementById('ctl-deselect').onclick = () => { game.selectedUnitId = null; renderAll(); };
+    document.getElementById('ctl-lock').onclick = () => lockInOrders();
+    return;
+  }
+  bar.innerHTML = '';
+}
+
+function renderAll() {
+  renderBanner(); renderRoster(); renderArmamentStatus(); renderContacts(); renderLog(); renderControls();
+}
+
+// ================================================================
+// INTERACTION
+// ================================================================
+const boxEl = document.getElementById('globe-box');
+function currentGeom() {
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  const cx = cssW/2, cy = cssH/2;
+  const R = Math.min(cx, cy) * 0.85 * state.zoom;
+  return { cx, cy, R, rot: getRotation() };
+}
+boxEl.addEventListener('mousedown', e => {
+  state.isDragging = true;
+  state.dragStartX = e.clientX; state.dragStartY = e.clientY;
+  state.dragStartRotY = state.userRotY; state.dragStartRotX = state.userRotX;
+  state.dragMoved = false;
+  boxEl.classList.add('dragging');
+});
+window.addEventListener('mousemove', e => {
+  const rect = boxEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  if (mx >= 0 && my >= 0 && mx <= rect.width && my <= rect.height) {
+    const { cx, cy, R, rot } = currentGeom();
+    const ll = screenToLatLon(mx, my, cx, cy, R, rot);
+    const ro = document.getElementById('hover-readout');
+    ro.innerHTML = ll ? `<b>CURSOR</b><br>${ll.lat.toFixed(1)}°, ${ll.lon.toFixed(1)}°` : '';
+  }
+  if (!state.isDragging) return;
+  const dx = e.clientX - state.dragStartX, dy = e.clientY - state.dragStartY;
+  if (Math.abs(dx) + Math.abs(dy) > 4) state.dragMoved = true;
+  state.userRotY = state.dragStartRotY + dx*0.005;
+  state.userRotX = Math.max(-Math.PI/2+0.1, Math.min(Math.PI/2-0.1, state.dragStartRotX + dy*0.005));
+});
+window.addEventListener('mouseup', e => {
+  if (!state.isDragging) return;
+  state.isDragging = false; boxEl.classList.remove('dragging');
+  if (!state.dragMoved) handleGlobeClick(e);
+});
+boxEl.addEventListener('wheel', e => {
+  e.preventDefault();
+  state.zoom = Math.max(0.6, Math.min(2.4, state.zoom - e.deltaY*0.001));
+}, { passive: false });
+
+function handleGlobeClick(e) {
+  const rect = boxEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const { cx, cy, R, rot } = currentGeom();
+
+  // Marker hit test first (own units only, per fog of war)
+  let hitUnit = null, bestD = 18;
+  for (const key in state.markerScreenPos) {
+    if (!key.startsWith('u:')) continue;
+    const pos = state.markerScreenPos[key];
+    if (pos.z < 0) continue;
+    const d = Math.hypot(pos.x - mx, pos.y - my);
+    if (d < bestD) { bestD = d; hitUnit = key.slice(2); }
+  }
+
+  if (game.phase === 'deploy') {
+    handleDeployClick(mx, my, cx, cy, R, rot);
+    return;
+  }
+  if (game.phase === 'orders') {
+    const viewer = game.ordersIdx;
+    if (hitUnit) {
+      const u = unitById(hitUnit);
+      if (u && u.ownerId === viewer && u.alive) { game.selectedUnitId = (game.selectedUnitId === hitUnit) ? null : hitUnit; renderAll(); return; }
+    }
+    if (game.selectedUnitId) handleWaypointClick(mx, my, cx, cy, R, rot);
+    return;
+  }
+}
+
+function handleDeployClick(mx, my, cx, cy, R, rot) {
+  const ll = screenToLatLon(mx, my, cx, cy, R, rot);
+  if (!ll) { showToast('Click on the globe'); return; }
+  const p = game.players[game.deployIdx];
+  if (!p.homeBase) {
+    p.homeBase = ll;
+    autoPan(ll.lat, ll.lon);
+    renderAll();
+    return;
+  }
+  const pending = p.roster.filter(u => !u.deployed);
+  if (!pending.length) { showToast('All units already deployed'); return; }
+  const dist = haversineKm(p.homeBase, ll);
+  if (dist > game.deployRadiusKm) { showToast('Outside deployment zone'); return; }
+  const unit = pending[0];
+  unit.pos = ll; unit.deployed = true;
+  renderAll();
+}
+function undoDeployment(p) {
+  const deployed = p.roster.filter(u => u.deployed);
+  if (deployed.length) { deployed[deployed.length-1].deployed = false; deployed[deployed.length-1].pos = null; }
+  else p.homeBase = null;
+  renderAll();
+}
+function confirmDeployment() {
+  if (game.deployIdx === 0) {
+    game.deployIdx = 1;
+    gateHandoff(game.players[1].name, game.players[1].color, () => renderAll());
+  } else {
+    game.phase = 'orders'; game.ordersIdx = 0; game.turn = 1;
+    gateHandoff(game.players[0].name, game.players[0].color, () => renderAll());
+  }
+}
+
+function handleWaypointClick(mx, my, cx, cy, R, rot) {
+  const ll = screenToLatLon(mx, my, cx, cy, R, rot);
+  if (!ll) { showToast('Click on the globe'); return; }
+  const u = unitById(game.selectedUnitId);
+  const t = PLATFORM_TYPES[u.type];
+  const pts = [u.pos, ...u.path];
+  let used = 0;
+  for (let i = 0; i < pts.length-1; i++) used += haversineKm(pts[i], pts[i+1]);
+  const leg = haversineKm(pts[pts.length-1], ll);
+  if (used + leg > t.speed * 1.03) { showToast('Exceeds range this turn'); return; }
+  u.path.push(ll);
+  renderAll();
+}
+
+function autoPan(lat, lon) {
+  const targetRotY = -lon * Math.PI/180, targetRotX = lat * Math.PI/180;
+  const startY = state.userRotY, startX = state.userRotX;
+  let deltaY = targetRotY - startY;
+  while (deltaY > Math.PI) deltaY -= Math.PI*2;
+  while (deltaY < -Math.PI) deltaY += Math.PI*2;
+  const deltaX = targetRotX - startX;
+  const t0 = performance.now(), duration = 700;
+  function step(t) {
+    const k = Math.min(1, (t-t0)/duration), e = 1 - Math.pow(1-k, 3);
+    state.userRotY = startY + deltaY*e; state.userRotX = startX + deltaX*e;
+    if (k < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ================================================================
+// HANDOFF GATE
+// ================================================================
+function gateHandoff(name, color, then) {
+  const modal = document.getElementById('handoff-modal');
+  document.getElementById('handoff-title').textContent = `Pass the device to ${name}`;
+  document.getElementById('handoff-sub').innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;"></span>${escapeHtml(name)}</span> — make sure no one else can see the screen before continuing.`;
+  modal.hidden = false;
+  game.pendingHandoffThen = then;
+}
+document.getElementById('handoff-ready').addEventListener('click', () => {
+  document.getElementById('handoff-modal').hidden = true;
+  const fn = game.pendingHandoffThen; game.pendingHandoffThen = null;
+  if (fn) fn();
+});
+
+// ================================================================
+// ORDERS LOCK-IN + RESOLUTION
+// ================================================================
+function lockInOrders() {
+  game.selectedUnitId = null;
+  if (game.ordersIdx === 0) {
+    game.ordersIdx = 1;
+    gateHandoff(game.players[1].name, game.players[1].color, () => renderAll());
+  } else {
+    game.phase = 'resolving';
+    renderAll();
+    setTimeout(resolveTurn, 300);
+  }
+}
+
+function resolveTurn() {
+  const entry = { turn: game.turn, moves: [], detections: [], engagements: [] };
+
+  // 1. Movement
+  for (const u of game.units) {
+    if (!u.alive) continue;
+    const from = u.pos;
+    const pts = [u.pos, ...u.path];
+    let dist = 0;
+    for (let i = 0; i < pts.length-1; i++) dist += haversineKm(pts[i], pts[i+1]);
+    const to = pts[pts.length-1];
+    if (dist > 0) {
+      game.moveArcs.push({ from: [from.lat, from.lon], to: [to.lat, to.lon], t: 0, color: game.players[u.ownerId].color });
+      entry.moves.push({ ownerId: u.ownerId, type: u.type, distance: dist });
+    }
+    u.pos = to; u.path = [];
+  }
+
+  // 2. Detection (per observing player)
+  for (const observer of game.players) {
+    const contacts = game.knownContacts[observer.id];
+    for (const cid in contacts) contacts[cid].fresh = false;
+    const own = game.units.filter(u => u.ownerId === observer.id && u.alive);
+    const enemies = game.units.filter(u => u.ownerId !== observer.id && u.alive);
+    for (const enemy of enemies) {
+      const et = PLATFORM_TYPES[enemy.type];
+      let detected = false;
+      for (const mine of own) {
+        const mt = PLATFORM_TYPES[mine.type];
+        const effSensor = mt.sensor * (1 - et.stealth/130);
+        if (haversineKm(mine.pos, enemy.pos) <= effSensor) { detected = true; break; }
+      }
+      if (detected) {
+        const wasKnown = !!contacts[enemy.id];
+        contacts[enemy.id] = { lat: enemy.pos.lat, lon: enemy.pos.lon, type: enemy.type, ownerId: enemy.ownerId, turnSeen: game.turn, fresh: true };
+        game.pulses.push({ lat: enemy.pos.lat, lon: enemy.pos.lon, t: 0, color: observer.color });
+        if (!wasKnown) entry.detections.push({ by: observer.id, type: enemy.type, unitId: enemy.id });
+      }
+    }
+    for (const cid in contacts) {
+      if (!contacts[cid].fresh && (game.turn - contacts[cid].turnSeen) >= CONTACT_DECAY_TURNS) delete contacts[cid];
+    }
+  }
+
+  // 3. Engagement (deterministic order: player 0 units, then player 1)
+  for (const attacker of game.units) {
+    if (!attacker.alive || attacker.stance === 'hold') continue;
+    const at = PLATFORM_TYPES[attacker.type];
+    if (!at.weapon) continue;
+    const contacts = game.knownContacts[attacker.ownerId];
+    let target = null, targetDist = Infinity;
+    for (const cid in contacts) {
+      if (!contacts[cid].fresh) continue;
+      const enemy = unitById(cid);
+      if (!enemy || !enemy.alive) continue;
+      const d = haversineKm(attacker.pos, enemy.pos);
+      if (d <= at.weapon && d < targetDist) { target = enemy; targetDist = d; }
+    }
+    if (!target) continue;
+
+    // Select the munition to expend: primary standoff weapon first, falling
+    // back to secondary stores once depleted. No valid munition = no shot.
+    const round = attacker.ammo.find(a => a.remaining > 0);
+    if (!round) {
+      entry.engagements.push({
+        attackerId: attacker.id, defenderId: target.id, outcome: 'WINCHESTER', net: 0, munition: null,
+        summary: `${game.players[attacker.ownerId].name} ${at.label} is Winchester (out of munitions) — held fire on ${game.players[target.ownerId].name} ${PLATFORM_TYPES[target.type].label}`,
+      });
+      continue;
+    }
+    round.remaining -= 1;
+
+    const dt = PLATFORM_TYPES[target.type];
+    let net = at.attack - dt.defense*0.6;
+    const h = hash(attacker.id + '|' + target.id + '|' + game.turn);
+    const variance = (h % 17) - 8;
+    net += variance;
+    let outcome, summary;
+    if (net >= 25) {
+      outcome = 'HIT';
+      target.hp = 0; target.alive = false;
+      summary = `${game.players[attacker.ownerId].name} ${at.label} fired 1x ${round.name} — destroyed ${game.players[target.ownerId].name} ${dt.label}`;
+    } else if (net >= 0) {
+      outcome = 'DAMAGED';
+      target.hp = Math.max(0, target.hp - dt.hp*0.4);
+      if (target.hp <= 0) target.alive = false;
+      summary = `${game.players[attacker.ownerId].name} ${at.label} fired 1x ${round.name} — damaged ${game.players[target.ownerId].name} ${dt.label}`;
+      if (h % 5 === 0 && attacker.alive) {
+        attacker.hp = Math.max(0, attacker.hp - at.hp*0.15);
+        if (attacker.hp <= 0) attacker.alive = false;
+        summary += ' (return fire)';
+      }
+    } else {
+      outcome = 'BACKFIRE';
+      attacker.hp = Math.max(0, attacker.hp - at.hp*0.3);
+      if (attacker.hp <= 0) attacker.alive = false;
+      summary = `${game.players[attacker.ownerId].name} ${at.label} fired 1x ${round.name} at ${game.players[target.ownerId].name} ${dt.label} and was repelled`;
+    }
+    game.flashes.push({ lat: target.pos.lat, lon: target.pos.lon, t: 0, color: outcome === 'HIT' ? 'rgba(22,163,74,0.9)' : outcome === 'DAMAGED' ? 'rgba(217,119,6,0.9)' : 'rgba(220,38,38,0.9)' });
+    game.moveArcs.push({ from: [attacker.pos.lat, attacker.pos.lon], to: [target.pos.lat, target.pos.lon], t: 0, color: '#dc2626' });
+    entry.engagements.push({ attackerId: attacker.id, defenderId: target.id, outcome, net: Math.round(net*10)/10, munition: round.name, summary });
+  }
+
+  game.log.push(entry);
+  renderAll();
+  setTimeout(() => showReport(entry), 2400);
+}
+
+function showReport(entry) {
+  game.phase = 'report';
+  const modal = document.getElementById('report-modal');
+  document.getElementById('report-title').textContent = `Turn ${entry.turn} Report`;
+  const body = document.getElementById('report-body');
+  let html = '';
+  html += `<div class="sec-lbl">Movement</div>`;
+  html += entry.moves.length ? entry.moves.map(m => `<div class="row">${escapeHtml(game.players[m.ownerId].name)} ${PLATFORM_TYPES[m.type].label} advanced ${m.distance.toFixed(0)} km</div>`).join('') : `<div class="row">No forces moved.</div>`;
+  html += `<div class="sec-lbl">New Contacts</div>`;
+  html += entry.detections.length ? entry.detections.map(d => `<div class="row">${escapeHtml(game.players[d.by].name)} detected a ${PLATFORM_TYPES[d.type].label}</div>`).join('') : `<div class="row">No new contacts.</div>`;
+  html += `<div class="sec-lbl">Engagements</div>`;
+  html += entry.engagements.length ? entry.engagements.map(e => {
+    const cls = e.outcome === 'HIT' ? 'hit' : e.outcome === 'DAMAGED' ? 'damaged' : e.outcome === 'BACKFIRE' ? 'backfire' : 'winchester';
+    const netTxt = e.outcome === 'WINCHESTER' ? '' : ` (net ${e.net >= 0 ? '+' : ''}${e.net})`;
+    return `<div class="row ${cls}">${escapeHtml(e.summary)}${netTxt}</div>`;
+  }).join('') : `<div class="row">No engagements.</div>`;
+  body.innerHTML = html;
+  modal.hidden = false;
+  renderAll();
+}
+document.getElementById('report-continue').addEventListener('click', () => {
+  document.getElementById('report-modal').hidden = true;
+  const p0dead = game.players[0].roster.every(u => !u.alive);
+  const p1dead = game.players[1].roster.every(u => !u.alive);
+  if (p0dead || p1dead || game.turn >= game.totalTurns) { showAAR(p0dead, p1dead); return; }
+  game.turn += 1; game.ordersIdx = 0;
+  game.phase = 'orders';
+  gateHandoff(game.players[0].name, game.players[0].color, () => renderAll());
+});
+
+function forceScore(playerId) {
+  return game.units.filter(u => u.ownerId === playerId).reduce((sum, u) => {
+    if (!u.alive) return sum;
+    const t = PLATFORM_TYPES[u.type];
+    return sum + (u.hp / t.hp) * (t.attack + 10);
+  }, 0);
+}
+function showAAR(p0dead, p1dead) {
+  game.phase = 'gameover';
+  renderAll();
+  const modal = document.getElementById('aar-modal');
+  const s0 = forceScore(0), s1 = forceScore(1);
+  document.getElementById('aar-sub').textContent = p0dead || p1dead
+    ? 'One side’s force package has been eliminated.'
+    : `Exercise concluded after ${game.totalTurns} turns.`;
+  document.getElementById('aar-score').innerHTML = game.players.map((p, i) => {
+    const score = i === 0 ? s0 : s1;
+    const lost = p.roster.filter(u => !u.alive).length;
+    return `<div class="aar-side" style="border-color:${p.color}"><div class="nm" style="color:${p.color}">${escapeHtml(p.name)}</div><div class="score">${score.toFixed(0)}</div><div class="lbl">FORCE EFFECTIVENESS · ${lost}/${p.roster.length} lost</div></div>`;
+  }).join('');
+  let verdict;
+  if (Math.abs(s0 - s1) < Math.max(s0, s1) * 0.1) verdict = 'Mutual Attrition — no clear operational advantage';
+  else verdict = `${s0 > s1 ? game.players[0].name : game.players[1].name} retains Operational Advantage`;
+  document.getElementById('aar-verdict').textContent = verdict;
+  modal.hidden = false;
+}
+document.getElementById('aar-restart').addEventListener('click', () => window.location.reload());
+document.getElementById('aar-home').addEventListener('click', () => { window.location.href = 'home.html'; });
+
+// ================================================================
+// SETUP
+// ================================================================
+document.getElementById('setup-begin').addEventListener('click', () => {
+  const n1 = document.getElementById('setup-p1-name').value.trim() || 'Blue Team';
+  const n2 = document.getElementById('setup-p2-name').value.trim() || 'Red Team';
+  game.totalTurns = parseInt(document.getElementById('setup-turns').value, 10);
+  game.players = [
+    { id: 0, name: n1, color: '#2563EB', homeBase: null, roster: [] },
+    { id: 1, name: n2, color: '#dc2626', homeBase: null, roster: [] },
+  ];
+  for (const p of game.players) {
+    DEFAULT_ROSTER.forEach((type, idx) => {
+      const t = PLATFORM_TYPES[type];
+      const unit = {
+        id: 'p' + p.id + '-u' + idx, ownerId: p.id, type, pos: null,
+        hp: t.hp, maxHp: t.hp, stance: 'engage', path: [], deployed: false, alive: true,
+        ammo: t.loadout.map(l => ({ name: l.name, kind: l.kind, qty: l.qty, remaining: l.qty })),
+      };
+      p.roster.push(unit);
+      game.units.push(unit);
+    });
+  }
+  game.phase = 'deploy'; game.deployIdx = 0;
+  document.getElementById('setup-modal').hidden = true;
+  renderAll();
+});
+
+renderAll();
+</script>
+</body>
+</html>

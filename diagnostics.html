@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Wargame · Diagnostics</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+  .panel {
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    border-radius: var(--radius-lg);
+    padding: 18px 22px;
+    margin-bottom: 18px;
+  }
+  .panel h2 {
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text2);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .check-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+  }
+  .check-row:last-child { border-bottom: none; }
+  .check-name { font-size: 13px; color: var(--text); }
+  .check-detail { font-size: 11px; color: var(--text3); margin-top: 3px; }
+  .badge-status {
+    font: 700 9px var(--font-mono);
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    min-width: 60px;
+    text-align: center;
+  }
+  .badge-status.ok    { background: rgba(34,197,94,0.15);  color: var(--good); border: 1px solid var(--good); }
+  .badge-status.warn  { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid var(--warn); }
+  .badge-status.fail  { background: rgba(239,68,68,0.15);  color: var(--bad);  border: 1px solid var(--bad);  }
+  .badge-status.run   { background: rgba(96,165,250,0.15); color: var(--accent); border: 1px solid var(--accent); }
+
+  .summary-tile {
+    display: inline-block;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    margin: 0 8px 8px 0;
+    min-width: 100px;
+  }
+  .summary-tile .v {
+    font: 700 22px var(--font-mono);
+    color: var(--accent);
+  }
+  .summary-tile .l {
+    display: block;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-top: 3px;
+  }
+
+  table.counts {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 12px;
+  }
+  table.counts th, table.counts td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.counts th {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  table.counts td.num {
+    font-family: var(--font-mono);
+    color: var(--accent);
+    text-align: right;
+    font-weight: 600;
+  }
+  .progress {
+    height: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--good));
+    transition: width 0.4s;
+  }
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin: 18px 0 14px;
+    flex-wrap: wrap;
+  }
+  pre.report {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    font: 11px/1.5 var(--font-mono);
+    border-radius: var(--radius);
+    max-height: 360px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+</style>
+</head>
+<body class="with-grid">
+
+<!-- Sidecar — provides window.__ENGINE_DATA -->
+<script src="engine-data.js" onerror="void 0"></script>
+
+<div class="wrap">
+
+<header class="page-head">
+  <div>
+    <h1>System <strong>Diagnostics</strong></h1>
+    <div class="subtitle">File integrity · Card counts · Counter-link audit</div>
+  </div>
+  <div>
+    <a class="btn" href="home.html">← Home</a>
+  </div>
+</header>
+
+<div class="actions">
+  <button class="btn primary" id="btn-rerun">Re-run All Checks</button>
+  <button class="btn" id="btn-copy">Copy Report</button>
+  <button class="btn" id="btn-download">Download Report</button>
+</div>
+
+<!-- 1. Critical files present? ============================================== -->
+<div class="panel">
+  <h2>Critical files</h2>
+  <div id="files-rows">
+    <div class="check-row"><div>Running…</div><div class="badge-status run">RUN</div></div>
+  </div>
+</div>
+
+<!-- 2. Card data integrity ================================================== -->
+<div class="panel">
+  <h2>Card catalogue</h2>
+  <div id="catalogue-summary"></div>
+  <div id="catalogue-rows"></div>
+</div>
+
+<!-- 3. Distribution ========================================================= -->
+<div class="panel">
+  <h2>Card distribution</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+    <div>
+      <h3 style="font-size:11px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">By Phase</h3>
+      <table class="counts" id="dist-phase"></table>
+    </div>
+    <div>
+      <h3 style="font-size:11px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">By Domain</h3>
+      <table class="counts" id="dist-domain"></table>
+    </div>
+  </div>
+  <h3 style="font-size:11px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin:14px 0 8px;">By Region</h3>
+  <table class="counts" id="dist-region"></table>
+</div>
+
+<!-- 4. Counter-link audit ================================================== -->
+<div class="panel">
+  <h2>Counter-link integrity</h2>
+  <div id="counter-rows"></div>
+</div>
+
+<!-- 5. Actor coverage ====================================================== -->
+<div class="panel">
+  <h2>Actor coverage</h2>
+  <div id="actor-rows"></div>
+</div>
+
+<!-- 6. Plain-text report =================================================== -->
+<div class="panel">
+  <h2>Diagnostic report</h2>
+  <pre class="report" id="report-text">Generating…</pre>
+</div>
+
+<footer class="page-foot">
+  <div><span class="live"></span>GWO · Diagnostics · runs entirely in your browser</div>
+  <div id="run-time"></div>
+</footer>
+
+</div>
+
+<script>
+// =============================================================================
+// DIAGNOSTICS RUNNER
+// =============================================================================
+
+// Files we expect to be present in this folder.
+const CRITICAL_FILES = [
+  'home.html',
+  'index.html',
+  'engine.html',
+  'globe.html',
+  'card-builder.html',
+  'theme.css',
+  'engine-data.js',
+];
+
+// Region inference from card actor sets — keep this pragmatic, not perfect.
+const REGION_BY_ACTOR = {
+  // East Asia + Indo-Pacific
+  'United States':'Indo-Pacific', 'China':'Indo-Pacific', 'Russia':'Russia',
+  'Japan':'Indo-Pacific', 'Taiwan':'Indo-Pacific', 'South Korea':'Indo-Pacific',
+  'DPRK':'Indo-Pacific', 'Philippines':'Indo-Pacific', 'Australia':'Indo-Pacific',
+  'New Zealand':'Indo-Pacific', 'Singapore':'Indo-Pacific', 'Malaysia':'Indo-Pacific',
+  'Indonesia':'Indo-Pacific', 'Vietnam':'Indo-Pacific', 'Canada':'Indo-Pacific',
+  'ASEAN Member':'Indo-Pacific', 'IEA':'Indo-Pacific',
+  // South + Central Asia
+  'India':'S+C Asia', 'Pakistan':'S+C Asia', 'Bangladesh':'S+C Asia',
+  'Sri Lanka':'S+C Asia', 'Afghanistan':'S+C Asia',
+  'Kazakhstan':'S+C Asia', 'Uzbekistan':'S+C Asia',
+  // Middle East
+  'Israel':'Middle East', 'Iran':'Middle East', 'Saudi Arabia':'Middle East',
+  'UAE':'Middle East', 'Turkey':'Middle East', 'Egypt':'Middle East',
+  'Qatar':'Middle East',
+  // Africa
+  'Nigeria':'Africa', 'South Africa':'Africa', 'Ethiopia':'Africa',
+  'Kenya':'Africa', 'Morocco':'Africa', 'DRC':'Africa',
+  // Europe (UK + France stay in Indo-Pacific by default since they have
+  // many Indo-Pacific cards from the original catalogue; we'll override
+  // for cards that ONLY have European actors).
+  'United Kingdom':'Europe', 'France':'Europe', 'Germany':'Europe',
+  'Poland':'Europe', 'Ukraine':'Europe', 'Italy':'Europe', 'Spain':'Europe',
+  'Netherlands':'Europe', 'Norway':'Europe', 'Belgium':'Europe',
+  'EU':'Europe', 'NATO':'Europe',
+};
+
+function inferRegion(card) {
+  const actors = (card.actors || []);
+  if (!actors.length) return 'Other';
+  // Count region votes; pick the majority
+  const tally = {};
+  for (const a of actors) {
+    const r = REGION_BY_ACTOR[a] || 'Other';
+    tally[r] = (tally[r] || 0) + 1;
+  }
+  let best = 'Other', bestN = 0;
+  for (const r in tally) {
+    if (tally[r] > bestN) { best = r; bestN = tally[r]; }
+  }
+  // ID-based override: existing 1-10 cards are Indo-Pacific; 11+ are global.
+  // If majority is ambiguous, fall back to id range.
+  const num = parseInt((card.id || '').split('-')[2] || '0', 10);
+  if (num <= 10 && best === 'Other') best = 'Indo-Pacific';
+  return best;
+}
+
+// ---- Runners ----
+//
+// File-presence check needs to work in TWO environments:
+//   1. http://  — when served by a local web server. fetch() works fully.
+//   2. file:// — when opened by double-clicking from a USB / desktop folder.
+//      Most browsers block fetch() on file:// URLs (returns network error),
+//      so we have to fall back to other detection strategies.
+//
+// Strategy stack per file (first that succeeds wins):
+//   A. Sidecar global  — engine-data.js sets window.__ENGINE_DATA when it
+//      loads via <script src>. If that exists, the file is definitely there.
+//   B. Computed CSS    — theme.css defines :root --accent. If
+//      getComputedStyle reports a non-empty value, the stylesheet loaded.
+//   C. fetch HEAD      — works on http://; rejected on most file:// setups.
+//   D. XHR sync GET    — works on file:// in most browsers (status 0 with
+//      a populated responseText when the file exists).
+//   E. <iframe> probe  — last-resort load event for HTML; survives the most
+//      restrictive browsers but is slowest.
+//
+// If A–D all fail (network error / blocked / unknown status), we mark the
+// row UNCHECKABLE rather than MISSING — false negatives are worse than
+// uncertainty when the user just plugged in a USB stick.
+
+function probeViaSidecarGlobal(file) {
+  if (file === 'engine-data.js' && window.__ENGINE_DATA && window.__ENGINE_DATA.cards) {
+    return { status: 'ok', detail: 'sidecar global loaded · ' + window.__ENGINE_DATA.cards.length + ' cards in memory' };
+  }
+  return null;
+}
+
+function probeViaComputedCSS(file) {
+  if (file !== 'theme.css') return null;
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  if (v && v.length > 0) return { status: 'ok', detail: 'stylesheet active · --accent=' + v };
+  return null;
+}
+
+async function probeViaFetch(file) {
+  // Use full URL relative to current page so file:// resolves correctly.
+  let res;
+  try {
+    res = await fetch(file, { method: 'HEAD', cache: 'no-cache' });
+  } catch (_) {
+    try { res = await fetch(file, { cache: 'no-cache' }); } catch (e2) { return null; }
+  }
+  if (!res) return null;
+  // file:// usually returns status 0 even when successful; treat 0+ok as success
+  if (res.ok || (res.status === 0 && res.type !== 'error')) {
+    return { status: 'ok', detail: 'reachable via fetch (HTTP ' + (res.status || 'file') + ')' };
+  }
+  if (res.status === 404) return { status: 'missing', detail: 'HTTP 404 not found' };
+  return { status: 'missing', detail: 'HTTP ' + res.status };
+}
+
+function probeViaXHR(file) {
+  return new Promise(resolve => {
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', file, true);
+      xhr.responseType = 'text';
+      // Browsers may not give length on file:// — limit to first few KB.
+      try { xhr.setRequestHeader('Range', 'bytes=0-1023'); } catch (_) {}
+      xhr.onload = function () {
+        // file://: status === 0 but responseText populated → success
+        // http:// : status === 200 (or 206 for partial content) → success
+        const text = xhr.responseText || '';
+        if ((xhr.status >= 200 && xhr.status < 400) || (xhr.status === 0 && text.length > 0)) {
+          resolve({ status: 'ok', detail: 'reachable via XHR · ' + text.length + 'B sample' });
+        } else if (xhr.status === 404) {
+          resolve({ status: 'missing', detail: 'HTTP 404 not found' });
+        } else {
+          resolve(null);
+        }
+      };
+      xhr.onerror = function () { resolve(null); };
+      xhr.send();
+    } catch (_) { resolve(null); }
+  });
+}
+
+function probeViaIframe(file) {
+  if (!file.endsWith('.html')) return Promise.resolve(null);
+  return new Promise(resolve => {
+    const ifr = document.createElement('iframe');
+    ifr.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;';
+    let done = false;
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      try { ifr.remove(); } catch (_) {}
+      resolve(result);
+    };
+    ifr.onload = () => finish({ status: 'ok', detail: 'loaded into hidden iframe' });
+    ifr.onerror = () => finish(null);
+    setTimeout(() => finish(null), 2500);
+    ifr.src = file;
+    document.body.appendChild(ifr);
+  });
+}
+
+async function probeFile(file) {
+  // Order matters — fastest, most reliable first.
+  return (
+    probeViaSidecarGlobal(file) ||
+    probeViaComputedCSS(file) ||
+    (await probeViaFetch(file)) ||
+    (await probeViaXHR(file)) ||
+    (await probeViaIframe(file)) ||
+    { status: 'uncheckable', detail: 'browser blocks file probes on this URL · cannot confirm' }
+  );
+}
+
+async function checkFiles() {
+  const rows = document.getElementById('files-rows');
+  rows.innerHTML = '';
+  let ok = 0, missing = 0, uncheckable = 0;
+  // Run probes in parallel — they're independent.
+  const results = await Promise.all(CRITICAL_FILES.map(f => probeFile(f).then(r => [f, r])));
+  for (const [f, res] of results) {
+    if (res.status === 'ok') ok++;
+    else if (res.status === 'missing') missing++;
+    else uncheckable++;
+    const badgeClass = res.status === 'ok' ? 'ok' : res.status === 'missing' ? 'fail' : 'warn';
+    const badgeText  = res.status === 'ok' ? 'OK' : res.status === 'missing' ? 'MISSING' : 'UNCHECKABLE';
+    rows.insertAdjacentHTML('beforeend',
+      `<div class="check-row"><div><div class="check-name">${f}</div>` +
+      `<div class="check-detail">${res.detail}</div></div>` +
+      `<div class="badge-status ${badgeClass}">${badgeText}</div></div>`);
+  }
+  // Banner row at top summarising and explaining file:// caveat
+  const protocol = location.protocol;
+  if (uncheckable > 0 && protocol === 'file:') {
+    rows.insertAdjacentHTML('afterbegin',
+      `<div class="check-row" style="background:rgba(245,158,11,0.06);">` +
+      `<div><div class="check-name">Running under <code>file://</code></div>` +
+      `<div class="check-detail">Some browsers block automated file probes on local URLs. Files marked UNCHECKABLE may still be present — open them manually if in doubt, or serve this folder via a tiny HTTP server.</div></div>` +
+      `<div class="badge-status warn">INFO</div></div>`);
+  }
+  return { ok, missing, uncheckable, total: CRITICAL_FILES.length };
+}
+
+function checkCatalogue() {
+  const summaryEl = document.getElementById('catalogue-summary');
+  const rowsEl = document.getElementById('catalogue-rows');
+  rowsEl.innerHTML = '';
+  summaryEl.innerHTML = '';
+
+  if (!window.__ENGINE_DATA || !Array.isArray(window.__ENGINE_DATA.cards)) {
+    rowsEl.innerHTML = '<div class="check-row"><div><div class="check-name">engine-data.js not loaded</div>' +
+      '<div class="check-detail">window.__ENGINE_DATA is missing — sidecar failed to load.</div></div>' +
+      '<div class="badge-status fail">FAIL</div></div>';
+    return null;
+  }
+
+  const cards    = window.__ENGINE_DATA.cards;
+  const counters = window.__ENGINE_DATA.counters || {};
+
+  const ids = new Set();
+  let dupes = 0;
+  for (const c of cards) {
+    if (ids.has(c.id)) dupes++;
+    ids.add(c.id);
+  }
+  let missingTitles = cards.filter(c => !c.title || c.title === c.id).length;
+  let missingActors = cards.filter(c => !c.actors || !c.actors.length).length;
+  let missingSummaries = cards.filter(c => !c.summary).length;
+
+  const counterEdges = Object.values(counters).reduce((s, a) => s + a.length, 0);
+
+  summaryEl.innerHTML =
+    `<div class="summary-tile"><span class="v">${cards.length}</span><span class="l">Cards loaded</span></div>` +
+    `<div class="summary-tile"><span class="v">${counterEdges}</span><span class="l">Counter edges</span></div>` +
+    `<div class="summary-tile"><span class="v">${ids.size}</span><span class="l">Unique IDs</span></div>` +
+    `<div class="summary-tile"><span class="v">${dupes}</span><span class="l">Duplicates</span></div>`;
+
+  const rows = [
+    { name: 'Cards array populated',     ok: cards.length > 0, detail: cards.length + ' cards' },
+    { name: 'Unique card IDs',           ok: dupes === 0, detail: dupes ? dupes + ' duplicate IDs' : 'all IDs unique' },
+    { name: 'All cards have titles',     ok: missingTitles === 0, detail: missingTitles ? missingTitles + ' cards missing titles' : 'present' },
+    { name: 'All cards list actors',     ok: missingActors === 0, detail: missingActors ? missingActors + ' cards have no actors' : 'present' },
+    { name: 'Counter graph populated',   ok: Object.keys(counters).length > 0, detail: Object.keys(counters).length + ' entries · ' + counterEdges + ' edges' },
+  ];
+  for (const r of rows) {
+    rowsEl.insertAdjacentHTML('beforeend',
+      `<div class="check-row"><div><div class="check-name">${r.name}</div>` +
+      `<div class="check-detail">${r.detail}</div></div>` +
+      `<div class="badge-status ${r.ok ? 'ok' : 'fail'}">${r.ok ? 'OK' : 'FAIL'}</div></div>`);
+  }
+
+  return { cards, counters, counterEdges, dupes, missingTitles, missingActors, missingSummaries };
+}
+
+function renderDistribution(cards) {
+  if (!cards) return null;
+  const phaseCount = { COM: 0, CON: 0, CRI: 0 };
+  const domainCount = { D: 0, I: 0, M: 0, E: 0 };
+  const regionCount = {};
+  for (const c of cards) {
+    if (phaseCount[c.phase] !== undefined) phaseCount[c.phase]++;
+    if (domainCount[c.domain] !== undefined) domainCount[c.domain]++;
+    const r = inferRegion(c);
+    regionCount[r] = (regionCount[r] || 0) + 1;
+  }
+  const phaseTbl = document.getElementById('dist-phase');
+  phaseTbl.innerHTML =
+    '<tr><th>Phase</th><th style="text-align:right;">Count</th></tr>' +
+    `<tr><td>Competition (COM)</td><td class="num">${phaseCount.COM}</td></tr>` +
+    `<tr><td>Conflict (CON)</td><td class="num">${phaseCount.CON}</td></tr>` +
+    `<tr><td>Crisis (CRI)</td><td class="num">${phaseCount.CRI}</td></tr>` +
+    `<tr><td><strong>Total</strong></td><td class="num"><strong>${cards.length}</strong></td></tr>`;
+
+  const domainTbl = document.getElementById('dist-domain');
+  domainTbl.innerHTML =
+    '<tr><th>Domain</th><th style="text-align:right;">Count</th></tr>' +
+    `<tr><td>Diplomatic (D)</td><td class="num">${domainCount.D}</td></tr>` +
+    `<tr><td>Informational (I)</td><td class="num">${domainCount.I}</td></tr>` +
+    `<tr><td>Military (M)</td><td class="num">${domainCount.M}</td></tr>` +
+    `<tr><td>Economic (E)</td><td class="num">${domainCount.E}</td></tr>` +
+    `<tr><td><strong>Total</strong></td><td class="num"><strong>${cards.length}</strong></td></tr>`;
+
+  const regionRows = Object.entries(regionCount).sort((a, b) => b[1] - a[1]);
+  const regionTbl = document.getElementById('dist-region');
+  regionTbl.innerHTML =
+    '<tr><th>Region</th><th style="text-align:right;">Count</th></tr>' +
+    regionRows.map(([r, n]) => `<tr><td>${r}</td><td class="num">${n}</td></tr>`).join('');
+
+  return { phaseCount, domainCount, regionCount };
+}
+
+function checkCounters(cards, counters) {
+  const rows = document.getElementById('counter-rows');
+  rows.innerHTML = '';
+  if (!cards) return null;
+
+  const idSet = new Set(cards.map(c => c.id));
+  let edges = 0, broken = 0;
+  const brokenList = [];
+  for (const fromId in counters) {
+    for (const toId of counters[fromId]) {
+      edges++;
+      if (!idSet.has(toId)) { broken++; brokenList.push([fromId, toId]); }
+    }
+  }
+  // Bidirectional check (for awareness, not a failure)
+  let symEdges = 0;
+  for (const fromId in counters) {
+    for (const toId of counters[fromId]) {
+      if (counters[toId] && counters[toId].includes(fromId)) symEdges++;
+    }
+  }
+  const checks = [
+    { name: 'Counter target IDs resolve to real cards', ok: broken === 0,
+      detail: broken === 0 ? edges + ' edges, all valid' : broken + ' of ' + edges + ' edges point at non-existent IDs' },
+    { name: 'No self-counters', ok: !Object.entries(counters).some(([k, v]) => v.includes(k)),
+      detail: 'each card counters someone other than itself' },
+    { name: 'Symmetric edges (info)', ok: true, detail: symEdges + ' bidirectional pairs out of ' + edges },
+  ];
+  for (const ch of checks) {
+    rows.insertAdjacentHTML('beforeend',
+      `<div class="check-row"><div><div class="check-name">${ch.name}</div>` +
+      `<div class="check-detail">${ch.detail}</div></div>` +
+      `<div class="badge-status ${ch.ok ? 'ok' : 'fail'}">${ch.ok ? 'OK' : 'FAIL'}</div></div>`);
+  }
+  if (broken) {
+    rows.insertAdjacentHTML('beforeend',
+      `<div class="check-row"><div><div class="check-name" style="color:var(--bad)">Broken edges</div>` +
+      `<div class="check-detail" style="font-family:var(--font-mono);font-size:11px;">` +
+      brokenList.slice(0, 12).map(([a, b]) => a + ' → ' + b).join(' · ') +
+      (brokenList.length > 12 ? ' …' : '') + `</div></div>` +
+      `<div class="badge-status fail">${brokenList.length}</div></div>`);
+  }
+  return { edges, broken, symEdges };
+}
+
+function checkActors(cards) {
+  const rows = document.getElementById('actor-rows');
+  rows.innerHTML = '';
+  if (!cards) return null;
+
+  const allActors = new Set();
+  for (const c of cards) for (const a of (c.actors || [])) allActors.add(a);
+
+  // Cards-per-actor distribution
+  const counts = {};
+  for (const c of cards) for (const a of (c.actors || [])) counts[a] = (counts[a] || 0) + 1;
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 5).map(([k, n]) => k + ' (' + n + ')').join(' · ');
+  const rare = sorted.filter(([k, n]) => n <= 2).map(([k, n]) => k + ' (' + n + ')').join(' · ');
+
+  const checks = [
+    { name: 'Distinct actors', ok: true, detail: allActors.size + ' unique actor strings' },
+    { name: 'Most-used actors', ok: true, detail: top || 'none' },
+    { name: 'Rarely-used actors (≤2 cards)', ok: true, detail: rare || 'none' },
+  ];
+  for (const ch of checks) {
+    rows.insertAdjacentHTML('beforeend',
+      `<div class="check-row"><div><div class="check-name">${ch.name}</div>` +
+      `<div class="check-detail">${ch.detail}</div></div>` +
+      `<div class="badge-status ${ch.ok ? 'ok' : 'fail'}">${ch.ok ? 'OK' : 'INFO'}</div></div>`);
+  }
+
+  return { distinctActors: allActors.size, counts };
+}
+
+function buildReport(filesRes, catRes, distRes, ctrRes, actRes) {
+  const lines = [];
+  const ts = new Date().toISOString();
+  lines.push('GLOBAL WARGAME · DIAGNOSTIC REPORT');
+  lines.push('Generated: ' + ts);
+  lines.push('User-agent: ' + navigator.userAgent);
+  lines.push('');
+  lines.push('=== Critical files ===');
+  if (filesRes) {
+    lines.push('  ' + filesRes.ok + ' / ' + filesRes.total + ' reachable');
+    lines.push('  ' + filesRes.missing + ' missing, ' + filesRes.uncheckable + ' uncheckable (under ' + location.protocol + ')');
+  } else {
+    lines.push('  (file check skipped)');
+  }
+  lines.push('');
+  lines.push('=== Card catalogue ===');
+  if (catRes) {
+    lines.push('  cards loaded:       ' + catRes.cards.length);
+    lines.push('  counter edges:      ' + catRes.counterEdges);
+    lines.push('  duplicate IDs:      ' + catRes.dupes);
+    lines.push('  cards w/o title:    ' + catRes.missingTitles);
+    lines.push('  cards w/o actors:   ' + catRes.missingActors);
+    lines.push('  cards w/o summary:  ' + catRes.missingSummaries);
+  } else {
+    lines.push('  ✗ engine-data.js failed to load — see Critical files panel.');
+  }
+  lines.push('');
+  lines.push('=== Distribution ===');
+  if (distRes) {
+    const p = distRes.phaseCount;
+    lines.push('  by phase:  COM=' + p.COM + ' · CON=' + p.CON + ' · CRI=' + p.CRI);
+    const d = distRes.domainCount;
+    lines.push('  by domain: D=' + d.D + ' · I=' + d.I + ' · M=' + d.M + ' · E=' + d.E);
+    lines.push('  by region:');
+    for (const [r, n] of Object.entries(distRes.regionCount).sort((a, b) => b[1] - a[1])) {
+      lines.push('    ' + r.padEnd(16) + ' ' + n);
+    }
+  }
+  lines.push('');
+  lines.push('=== Counter-link audit ===');
+  if (ctrRes) {
+    lines.push('  edges:        ' + ctrRes.edges);
+    lines.push('  broken:       ' + ctrRes.broken);
+    lines.push('  symmetric:    ' + ctrRes.symEdges);
+  }
+  lines.push('');
+  lines.push('=== Actor coverage ===');
+  if (actRes) {
+    lines.push('  distinct actors: ' + actRes.distinctActors);
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+let LAST_REPORT = '';
+async function runAll() {
+  document.getElementById('btn-rerun').disabled = true;
+  document.getElementById('run-time').textContent = 'Running…';
+  const t0 = performance.now();
+  const filesRes = await checkFiles();
+  const catRes   = checkCatalogue();
+  const cards    = catRes ? catRes.cards : null;
+  const counters = catRes ? catRes.counters : null;
+  const distRes  = renderDistribution(cards);
+  const ctrRes   = checkCounters(cards, counters);
+  const actRes   = checkActors(cards);
+  LAST_REPORT = buildReport(filesRes, catRes, distRes, ctrRes, actRes);
+  document.getElementById('report-text').textContent = LAST_REPORT;
+  const elapsed = (performance.now() - t0).toFixed(0);
+  document.getElementById('run-time').textContent = 'Run completed in ' + elapsed + 'ms';
+  document.getElementById('btn-rerun').disabled = false;
+}
+
+document.getElementById('btn-rerun').addEventListener('click', runAll);
+document.getElementById('btn-copy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(LAST_REPORT); alert('Report copied to clipboard.'); }
+  catch (e) { alert('Clipboard write blocked: ' + e.message); }
+});
+document.getElementById('btn-download').addEventListener('click', () => {
+  const blob = new Blob([LAST_REPORT], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'global-wargame-diagnostics-' + new Date().toISOString().replace(/[:.]/g, '-') + '.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+runAll();
+</script>
+</body>
+</html>

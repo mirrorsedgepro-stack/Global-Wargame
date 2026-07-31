@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Card Builder — Global Wargame</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+  :root {
+
+    --ok: #16a34a;
+    --err: #dc2626;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image:
+      linear-gradient(rgba(168,162,158,0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(168,162,158,0.08) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events:none;
+    z-index:0;
+  }
+  .app {
+    position: relative; z-index: 2;
+    display: grid;
+    grid-template-columns: minmax(380px, 520px) 1fr;
+    grid-template-rows: auto auto 1fr;    /* header / notice / content stretches */
+    gap: 18px;
+    padding: 20px;
+    height: 100vh;
+    min-height: 0;                        /* allow children to shrink and scroll */
+  }
+  @media (max-width: 1000px) {
+    .app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto auto auto; /* header / notice / form / preview */
+      height: auto;
+    }
+  }
+
+  header.topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header.topbar h1 {
+    font-size: 18px;
+    font-weight: 300;
+    letter-spacing: 2px;
+  }
+  header.topbar h1 strong { color: var(--accent); font-weight: 700; }
+  header.topbar .subtitle {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  header.topbar a {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    text-transform: uppercase;
+  }
+  header.topbar a:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Form panel — override theme.css .panel padding/radius for the
+     builder's flush-to-edges flex column layout. */
+  .panel {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;     /* let inner flex children scroll instead of overflow */
+  }
+  .preview-wrap.panel { overflow: hidden; }   /* iframe handles its own scroll */
+  .panel-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text3);
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    background: var(--bg3);
+    z-index: 2;
+  }
+  .panel-body { padding: 16px; overflow: auto; flex: 1; }
+
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .field .hint {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 4px;
+    font-style: italic;
+  }
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    letter-spacing: 0.3px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+
+  fieldset {
+    border: 1px solid var(--border);
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  fieldset legend {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding: 0 8px;
+    font-weight: 700;
+  }
+
+  /* Buttons */
+  .actions {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: var(--bg3);
+  }
+  button.btn {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 9px 16px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    color: var(--text2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  button.btn:hover { border-color: var(--accent); color: var(--accent); }
+  button.btn.primary { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  button.btn.primary:hover { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+  button.btn.danger:hover { border-color: var(--err); color: var(--err); }
+  button.btn.copied { border-color: var(--ok); color: var(--ok); }
+
+  /* Preview */
+  .preview-wrap { position: relative; }
+  iframe.preview {
+    flex: 1;          /* stretch to fill remaining space in the flex panel */
+    width: 100%;
+    min-height: 0;    /* allow shrinking inside flex */
+    border: none;
+    background: var(--bg);
+    display: block;
+  }
+  .preview-overlay {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-transform: uppercase;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--panel) 90%, transparent);
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+  }
+  .filename-display {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--bg2);
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    margin-right: auto;
+    align-self: center;
+  }
+
+  /* Notice banner */
+  .notice {
+    grid-column: 1 / -1;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .notice strong { color: var(--text); }
+  .notice code {
+    font-family: 'Courier New', monospace;
+    background: var(--bg2);
+    padding: 1px 6px;
+    color: var(--accent);
+    font-size: 11px;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <div>
+      <h1>Card <strong>Builder</strong></h1>
+      <div class="subtitle">Global Wargame · DIME Catalogue</div>
+    </div>
+    <a href="index.html">← Operations Center</a>
+  </header>
+
+  <div class="notice">
+    Fill in the form and the preview on the right updates live. Click <strong>Download .html</strong> and drop the file into this folder — its filename is auto-generated from ID + title. To add new cards to the filterable Operations Center, open <code>index.html</code> and click <strong>+ Import card files</strong> to pick up anything new in the folder.
+  </div>
+
+  <!-- FORM PANEL -->
+  <div class="panel">
+    <div class="panel-head">Card Details</div>
+    <div class="panel-body">
+
+      <fieldset>
+        <legend>Identity</legend>
+        <div class="row">
+          <div class="field">
+            <label>Phase</label>
+            <select id="f-phase">
+              <option value="COM">COM — Competition</option>
+              <option value="CON">CON — Conflict</option>
+              <option value="CRI">CRI — Crisis</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Domain</label>
+            <select id="f-domain">
+              <option value="D">D — Diplomatic</option>
+              <option value="I">I — Informational</option>
+              <option value="M">M — Military</option>
+              <option value="E">E — Economic</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Number</label>
+            <input type="number" id="f-num" value="01" min="1" max="99">
+          </div>
+        </div>
+        <div class="field">
+          <label>Title</label>
+          <input type="text" id="f-title" placeholder="e.g. Quad Maritime Intelligence Fusion Center">
+        </div>
+        <div class="field">
+          <label>Actors (comma-separated)</label>
+          <input type="text" id="f-actors" placeholder="United States, Japan, Australia">
+          <div class="hint">Click a country chip below to add it. Names must match exactly so the engine can resolve them.</div>
+          <div id="country-chips" class="country-chips" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;max-height:170px;overflow-y:auto;padding:6px;background:rgba(0,0,0,0.03);border:1px solid var(--border);border-radius:3px;">
+            <span style="font-size:11px;color:var(--text3);letter-spacing:1px;">Loading countries…</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Escalation Risk</label>
+          <select id="f-risk">
+            <option value="LOW">LOW 🟢</option>
+            <option value="MEDIUM">MEDIUM 🟡</option>
+            <option value="HIGH">HIGH 🟠</option>
+            <option value="CRITICAL">CRITICAL 🔴</option>
+          </select>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Core Effect</legend>
+        <div class="field">
+          <label>Action</label>
+          <textarea id="f-action" rows="3" placeholder="What does the card do in-game?"></textarea>
+        </div>
+        <div class="field">
+          <label>Immediate Effect</label>
+          <textarea id="f-effect" rows="2" placeholder="Mechanical effect — e.g. 'Target loses -1 Regional Influence for 2 turns.'"></textarea>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Potential Outcomes</legend>
+        <div class="field">
+          <label>Best Case</label>
+          <textarea id="f-best" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label>Partial Success</label>
+          <textarea id="f-partial" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label>Backfire</label>
+          <textarea id="f-backfire" rows="2"></textarea>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Counter-Cards</legend>
+        <div class="field">
+          <label>One per line</label>
+          <textarea id="f-counters" rows="3" placeholder="US ASEAN Engagement Initiative (D)
+Japan Official Security Assistance (E)"></textarea>
+          <div class="hint">Format: "Name (Domain)". Links are auto-wired later via the counter-tag mapper.</div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Constraints &amp; Assumptions</legend>
+        <div class="field">
+          <label>Constraints (one per line)</label>
+          <textarea id="f-constraints" rows="3"></textarea>
+        </div>
+        <div class="field">
+          <label>Key Assumptions (one per line)</label>
+          <textarea id="f-assumptions" rows="3"></textarea>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Optional: Deep Context</legend>
+        <div class="field">
+          <label>Strategic Notes</label>
+          <textarea id="f-strategy" rows="3" placeholder="Background and design commentary. Leave blank to omit this section."></textarea>
+        </div>
+        <div class="field">
+          <label>Historical Analogues (one per line)</label>
+          <textarea id="f-historical" rows="3" placeholder="**2022 Solomon Islands Security Agreement:** China's template for deep security integration
+**2003 China-ASEAN Strategic Partnership:** The foundational soft-power move"></textarea>
+          <div class="hint">Use **bold** markers for the event name. Leave blank to omit.</div>
+        </div>
+      </fieldset>
+
+    </div>
+    <div class="actions">
+      <div class="filename-display" id="filename">COM-D-01-new-card.html</div>
+      <button class="btn" id="btn-sample" type="button">Load Sample</button>
+      <button class="btn danger" id="btn-reset" type="button">Reset</button>
+      <button class="btn" id="btn-copy" type="button">Copy HTML</button>
+      <button class="btn primary" id="btn-download" type="button">Download .html</button>
+    </div>
+  </div>
+
+  <!-- PREVIEW PANEL -->
+  <div class="panel preview-wrap">
+    <div class="panel-head">Live Preview</div>
+    <iframe class="preview" id="preview" title="Card preview"></iframe>
+    <div class="preview-overlay">Preview · not saved</div>
+  </div>
+</div>
+
+<!-- Sidecar: provides window.__ENGINE_DATA (147 cards) used by the country chip picker -->
+<script src="engine-data.js" onerror="void 0"></script>
+
+<script>
+// ==== Domain / Phase lookups ====
+const PHASE = {
+  COM: { label: 'COMPETITION', color: '#7c3aed' },
+  CON: { label: 'CONFLICT',    color: '#db2777' },
+  CRI: { label: 'CRISIS',      color: '#dc2626' },
+};
+const DOMAIN = {
+  D: { label: 'Diplomatic',    color: '#2563EB' },
+  I: { label: 'Informational', color: '#7c3aed' },
+  M: { label: 'Military',      color: '#dc2626' },
+  E: { label: 'Economic',      color: '#d97706' },
+};
+const RISK = {
+  LOW:      { color: '#16a34a', sym: '🟢' },
+  MEDIUM:   { color: '#ca8a04', sym: '🟡' },
+  HIGH:     { color: '#d97706', sym: '🟠' },
+  CRITICAL: { color: '#dc2626', sym: '🔴' },
+};
+
+// ==== Utility ====
+const escapeHtml = s => (s || '').replace(/[&<>"]/g, c => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
+}[c]));
+
+function slugify(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 50);
+}
+
+function lines(text) {
+  return (text || '')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+function boldify(s) {
+  // Turn **foo** into <strong>foo</strong>
+  return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+// ==== Form read ====
+function readForm() {
+  const phase = document.getElementById('f-phase').value;
+  const domain = document.getElementById('f-domain').value;
+  const num = String(document.getElementById('f-num').value || '1').padStart(2, '0');
+  return {
+    phase, domain, num,
+    id: `${phase}-${domain}-${num}`,
+    title: document.getElementById('f-title').value.trim(),
+    actors: document.getElementById('f-actors').value.split(',').map(s => s.trim()).filter(Boolean),
+    risk: document.getElementById('f-risk').value,
+    action: document.getElementById('f-action').value.trim(),
+    effect: document.getElementById('f-effect').value.trim(),
+    best: document.getElementById('f-best').value.trim(),
+    partial: document.getElementById('f-partial').value.trim(),
+    backfire: document.getElementById('f-backfire').value.trim(),
+    counters: lines(document.getElementById('f-counters').value),
+    constraints: lines(document.getElementById('f-constraints').value),
+    assumptions: lines(document.getElementById('f-assumptions').value),
+    strategy: document.getElementById('f-strategy').value.trim(),
+    historical: lines(document.getElementById('f-historical').value),
+  };
+}
+
+// ==== Filename ====
+function filenameFor(data) {
+  const slug = slugify(data.title) || 'new-card';
+  return `${data.id}-${slug}.html`;
+}
+
+// ==== Card HTML builder ====
+function buildCard(data) {
+  const phase = PHASE[data.phase];
+  const domain = DOMAIN[data.domain];
+  const risk = RISK[data.risk] || RISK.LOW;
+
+  const phaseLabel = phase.label;
+  const domainColor = domain.color;
+  const phaseColor = phase.color;
+  const riskColor = risk.color;
+
+  const title = escapeHtml(data.title || '(Untitled)');
+  const cid = data.id;
+
+  const actorsHtml = data.actors.length
+    ? data.actors.map(a => `<span class="actor-pill">${escapeHtml(a)}</span>`).join('')
+    : '<span class="actor-pill">—</span>';
+
+  const countersHtml = data.counters.length
+    ? data.counters.map(c => `<span class="counter-tag">${escapeHtml(c)}</span>`).join('')
+    : '<span class="counter-tag" style="opacity:0.4">No counter-cards listed</span>';
+
+  const listHtml = (items) => items.map(i => `<li class="">${escapeHtml(i)}</li>`).join('\n');
+
+  const constraintsSec = data.constraints.length ? `
+      <div class="section">
+        <div class="section-label">Constraints &amp; Limitations</div>
+        <div class="constraints-box"><ul>${listHtml(data.constraints)}</ul></div>
+      </div>` : '';
+
+  const assumptionsSec = data.assumptions.length ? `
+      <div class="section">
+        <div class="section-label">Key Assumptions</div>
+        <div class="assumptions-box"><ul>${listHtml(data.assumptions)}</ul></div>
+      </div>` : '';
+
+  const strategySec = data.strategy ? `
+      <div class="section">
+        <div class="collapsible-header" onclick="toggleSection('strategic-notes')" id="strategic-notes-header">
+          <div class="section-label">Strategic Notes</div>
+          <span class="collapse-icon collapsed" id="strategic-notes-icon">&#9660;</span>
+        </div>
+        <div class="collapsible-content collapsed" id="strategic-notes-content">
+          <div class="strategy-box">${escapeHtml(data.strategy)}</div>
+        </div>
+      </div>` : '';
+
+  const historicalSec = data.historical.length ? `
+      <div class="section">
+        <div class="collapsible-header" onclick="toggleSection('historical')" id="historical-header">
+          <div class="section-label">Historical Analogues</div>
+          <span class="collapse-icon collapsed" id="historical-icon">&#9660;</span>
+        </div>
+        <div class="collapsible-content collapsed" id="historical-content">
+          <div class="historical-box"><ul>
+${data.historical.map(h => `<li class="">${boldify(h)}</li>`).join('\n')}
+          </ul></div>
+        </div>
+      </div>` : '';
+
+  // Return full standalone card HTML
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${cid}: ${title}</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"><\/script>
+<style>
+  :root {
+    --domain: ${domainColor};
+    --phase: ${phaseColor};
+    --risk: ${riskColor};
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before { content:''; position:fixed; inset:0; background-image: linear-gradient(rgba(168,162,158,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(168,162,158,0.08) 1px, transparent 1px); background-size: 40px 40px; pointer-events:none; z-index:0; }
+  body::after { content:''; position:fixed; inset:0; background: rgba(124,58,237,0.03); pointer-events:none; z-index:0; }
+  #progress-bar { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--domain), var(--phase)); z-index: 1000; transition: width 0.1s linear; }
+  .wrapper { position:relative; z-index:5; max-width: 900px; margin: 0 auto; padding: 28px 20px 40px; animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn { from {opacity:0; transform:translateY(8px)} to {opacity:1; transform:translateY(0)} }
+  .nav-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+  .nav-back { color: var(--text3); text-decoration: none; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; border: 1px solid var(--border); padding: 6px 14px; transition: all 0.2s; }
+  .nav-back:hover { border-color: var(--domain); color: var(--domain); }
+  .breadcrumb { font-size: 10px; letter-spacing: 2px; color: var(--text3); text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .breadcrumb-sep { color: var(--border); }
+  .breadcrumb-phase { color: var(--phase); }
+  .breadcrumb-domain { color: var(--domain); }
+  .breadcrumb-id { color: var(--text2); font-family: 'Courier New', monospace; }
+  .card { background: var(--bg3); border: 1px solid var(--domain); box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.02), 0 0 60px color-mix(in srgb, ${domainColor} 15%, transparent); position: relative; overflow: hidden; }
+  .card::before { content:''; position:absolute; top:0; left:0; width:100%; height:3px; background: linear-gradient(90deg, var(--domain), transparent); }
+  .banner { background: linear-gradient(135deg, color-mix(in srgb, var(--domain) 10%, var(--panel)), color-mix(in srgb, var(--domain) 5%, var(--bg2))); border-bottom: 1px solid color-mix(in srgb, ${domainColor} 30%, transparent); padding: 20px 28px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .banner-left { flex:1; min-width:200px; }
+  .banner-badges { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .badge { font-size: 9px; letter-spacing: 3px; font-weight: 700; padding: 4px 12px; text-transform: uppercase; border: 1px solid; }
+  .badge-phase { border-color: var(--phase); color: var(--phase); background: color-mix(in srgb, var(--phase) 10%, transparent); }
+  .badge-domain { border-color: var(--domain); color: var(--domain); background: color-mix(in srgb, ${domainColor} 10%, transparent); }
+  .card-id-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .card-id-display { font-family: 'Courier New', monospace; font-size: 13px; letter-spacing: 4px; color: var(--domain); font-weight: 700; }
+  .card-title { font-size: 22px; font-weight: 300; letter-spacing: 1px; color: var(--text); line-height: 1.3; }
+  .banner-right { text-align:right; }
+  .risk-gauge { border: 2px solid var(--risk); padding: 12px 20px; text-align: center; background: color-mix(in srgb, ${riskColor} 8%, transparent); box-shadow: 0 0 20px color-mix(in srgb, ${riskColor} 20%, transparent); }
+  .risk-label { font-size:9px; letter-spacing:3px; color:var(--text3); text-transform:uppercase; margin-bottom:4px; }
+  .risk-value { font-size:18px; font-weight:700; color:var(--risk); letter-spacing:2px; }
+  .risk-sym { font-size:24px; margin-top:4px; }
+  .actors-row { padding: 12px 28px; background: rgba(0,0,0,0.03); border-bottom: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .actor-label { font-size:9px; letter-spacing:3px; color:var(--text3); text-transform:uppercase; }
+  .actor-pill { font-size: 11px; font-weight: 600; padding: 4px 12px; background: color-mix(in srgb, ${domainColor} 12%, transparent); border: 1px solid color-mix(in srgb, ${domainColor} 40%, transparent); color: var(--domain); letter-spacing: 1px; }
+  .body { padding: 28px; }
+  .section { margin-bottom: 24px; }
+  .section-label { font-size: 9px; letter-spacing: 4px; text-transform: uppercase; color: var(--domain); font-weight: 700; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, ${domainColor} 20%, transparent); }
+  .section-text { font-size: 14px; line-height: 1.7; color: var(--text2); }
+  .collapsible-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, ${domainColor} 20%, transparent); margin-bottom: 10px; }
+  .collapsible-header:hover .section-label { color: var(--text); }
+  .collapsible-header .section-label { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .collapse-icon { font-size: 11px; color: var(--text3); letter-spacing: 2px; transition: transform 0.25s; font-family: 'Courier New', monospace; }
+  .collapsible-content { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 2000px; opacity: 1; }
+  .collapsible-content.collapsed { max-height: 0; opacity: 0; }
+  .collapse-icon.collapsed { transform: rotate(-90deg); }
+  .effect-box { background: color-mix(in srgb, ${domainColor} 8%, transparent); border: 1px solid color-mix(in srgb, ${domainColor} 30%, transparent); border-left: 3px solid var(--domain); padding: 16px 20px; font-size: 14px; line-height: 1.7; color: var(--text); }
+  .outcomes { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  @media(max-width:600px){ .outcomes { grid-template-columns:1fr; } }
+  .outcome { padding: 16px; border: 1px solid var(--border); background: var(--bg2); position: relative; overflow: hidden; }
+  .outcome::before { content:''; position:absolute; top:0; left:0; width:100%; height:2px; }
+  .outcome-best::before { background: #16a34a; } .outcome-best { background: color-mix(in srgb, #16a34a 4%, var(--bg)); }
+  .outcome-partial::before { background: var(--risk); }
+  .outcome-backfire::before { background: #be123c; } .outcome-backfire { background: color-mix(in srgb, #be123c 4%, var(--bg)); }
+  .outcome-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+  .outcome-best .outcome-label { color:#16a34a; }
+  .outcome-partial .outcome-label { color:var(--risk); }
+  .outcome-backfire .outcome-label { color:#be123c; }
+  .outcome-text { font-size:12px; line-height:1.6; color:var(--text2); }
+  .counters { display:flex; flex-wrap:wrap; gap:8px; }
+  .counter-tag { font-size: 11px; padding: 6px 14px; border: 1px solid var(--border); color: var(--text2); background: var(--bg2); font-family: 'Courier New', monospace; letter-spacing: 0.5px; text-decoration: none; display: inline-block; transition: border-color 0.2s, color 0.2s, background 0.2s; }
+  a.counter-tag:hover { border-color: var(--domain); color: var(--domain); cursor: pointer; }
+  .strategy-box { background: rgba(0,0,0,0.05); border: 1px solid var(--border); border-left: 3px solid var(--text3); padding: 18px 20px; font-size: 13px; line-height: 1.7; color: var(--text2); font-style: italic; }
+  .constraints-box { background: rgba(234,88,12,0.06); border: 1px solid rgba(234,88,12,0.2); border-left: 3px solid #ea580c; padding: 16px 20px; }
+  .constraints-box ul { list-style: none; padding: 0; margin: 0; }
+  .constraints-box li { font-size: 13px; line-height: 1.7; color: var(--text2); padding: 4px 0 4px 18px; position: relative; }
+  .constraints-box li::before { content: "▸"; position: absolute; left: 0; color: #c2410c; font-size: 11px; top: 6px; }
+  .assumptions-box { background: rgba(234,179,8,0.06); border: 1px solid rgba(234,179,8,0.2); border-left: 3px solid #ca8a04; padding: 16px 20px; }
+  .assumptions-box ul { list-style: none; padding: 0; margin: 0; }
+  .assumptions-box li { font-size: 13px; line-height: 1.7; color: var(--text2); padding: 4px 0 4px 18px; position: relative; }
+  .assumptions-box li::before { content: "▸"; position: absolute; left: 0; color: #ca8a04; font-size: 11px; top: 6px; }
+  .historical-box { background: rgba(180,130,40,0.08); border: 1px solid rgba(180,130,40,0.25); border-left: 3px solid #b8821a; padding: 16px 20px; position: relative; }
+  .historical-box::before { content: "INTEL BRIEF"; position: absolute; top: -1px; right: 16px; font-size: 8px; letter-spacing: 3px; color: #92400e; background: var(--bg3); padding: 2px 8px; font-weight: 700; }
+  .historical-box ul { list-style: none; padding: 0; margin: 0; }
+  .historical-box li { font-size: 13px; line-height: 1.7; color: #92400e; padding: 6px 0 6px 18px; position: relative; border-bottom: 1px solid rgba(180,130,40,0.12); }
+  .historical-box li:last-child { border-bottom: none; }
+  .historical-box li::before { content: "◈"; position: absolute; left: 0; color: #92400e; font-size: 10px; top: 8px; }
+  .historical-box li strong { color: #b45309; font-weight: 700; }
+  .footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .footer-id { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 3px; color: var(--text3); }
+  .footer-meta { font-size: 10px; letter-spacing: 2px; color: var(--text3); text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div id="progress-bar"></div>
+<div class="wrapper">
+  <div class="nav-row">
+    <a class="nav-back" href="index.html">← Operations Center</a>
+  </div>
+
+  <div class="breadcrumb">
+    <span>Operations Center</span>
+    <span class="breadcrumb-sep">›</span>
+    <span class="breadcrumb-phase">${phaseLabel}</span>
+    <span class="breadcrumb-sep">›</span>
+    <span class="breadcrumb-domain">${domain.label}</span>
+    <span class="breadcrumb-sep">›</span>
+    <span class="breadcrumb-id">${cid}</span>
+  </div>
+
+  <div class="card">
+    <div class="banner">
+      <div class="banner-left">
+        <div class="banner-badges">
+          <span class="badge badge-phase">${phaseLabel}</span>
+          <span class="badge badge-domain">${domain.label} (${data.domain})</span>
+        </div>
+        <div class="card-id-row">
+          <div class="card-id-display">${cid}</div>
+        </div>
+        <div class="card-title">${title}</div>
+      </div>
+      <div class="banner-right">
+        <div class="risk-gauge">
+          <div class="risk-label">Escalation Risk</div>
+          <div class="risk-value">${data.risk}</div>
+          <div class="risk-sym">${risk.sym}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actors-row">
+      <span class="actor-label">Actors:</span>
+      ${actorsHtml}
+    </div>
+
+    <div class="body">
+      <div class="section">
+        <div class="section-label">Action</div>
+        <div class="section-text">${escapeHtml(data.action) || '<em style="opacity:0.5">(no action specified)</em>'}</div>
+      </div>
+      <div class="section">
+        <div class="section-label">Immediate Effect</div>
+        <div class="effect-box">${escapeHtml(data.effect) || '<em style="opacity:0.5">(no immediate effect specified)</em>'}</div>
+      </div>
+      <div class="section">
+        <div class="section-label">Potential Outcomes</div>
+        <div class="outcomes">
+          <div class="outcome outcome-best">
+            <div class="outcome-label">Best Case</div>
+            <div class="outcome-text">${escapeHtml(data.best) || '—'}</div>
+          </div>
+          <div class="outcome outcome-partial">
+            <div class="outcome-label">Partial Success</div>
+            <div class="outcome-text">${escapeHtml(data.partial) || '—'}</div>
+          </div>
+          <div class="outcome outcome-backfire">
+            <div class="outcome-label">Backfire</div>
+            <div class="outcome-text">${escapeHtml(data.backfire) || '—'}</div>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-label">Counter-Cards</div>
+        <div class="counters">${countersHtml}</div>
+      </div>
+${constraintsSec}
+${assumptionsSec}
+${strategySec}
+${historicalSec}
+    </div>
+
+    <div class="footer">
+      <div class="footer-id">${cid} — ${phaseLabel} / ${domain.label}</div>
+      <div class="footer-meta">Global Wargame · DIME Catalogue 2030–2036 · Indo-Pacific</div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.addEventListener('scroll', function() {
+  var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+  var scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+  var progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+  document.getElementById('progress-bar').style.width = progress + '%';
+});
+function toggleSection(id) {
+  var content = document.getElementById(id + '-content');
+  var icon = document.getElementById(id + '-icon');
+  content.classList.toggle('collapsed');
+  icon.classList.toggle('collapsed');
+}
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'b' || e.key === 'B') { window.location.href = 'index.html'; }
+});
+<\/script>
+</body>
+</html>`;
+}
+
+// ==== Live preview ====
+const previewFrame = document.getElementById('preview');
+let renderTimer = null;
+
+function render() {
+  const data = readForm();
+  document.getElementById('filename').textContent = filenameFor(data);
+  const html = buildCard(data);
+  previewFrame.srcdoc = html;
+}
+
+function scheduleRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(render, 120);
+}
+
+// Bind inputs
+['f-phase','f-domain','f-num','f-title','f-actors','f-risk',
+ 'f-action','f-effect','f-best','f-partial','f-backfire',
+ 'f-counters','f-constraints','f-assumptions','f-strategy','f-historical']
+  .forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', scheduleRender);
+    el.addEventListener('change', scheduleRender);
+  });
+
+// Buttons
+document.getElementById('btn-download').addEventListener('click', () => {
+  const data = readForm();
+  if (!data.title) { alert('Please add a Title before downloading.'); return; }
+  const html = buildCard(data);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filenameFor(data);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btn-copy').addEventListener('click', async (e) => {
+  const html = buildCard(readForm());
+  try {
+    await navigator.clipboard.writeText(html);
+    e.target.classList.add('copied');
+    const orig = e.target.textContent;
+    e.target.textContent = '✓ Copied';
+    setTimeout(() => { e.target.textContent = orig; e.target.classList.remove('copied'); }, 1400);
+  } catch (err) { alert('Copy failed: ' + err.message); }
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (!confirm('Clear all fields?')) return;
+  document.querySelectorAll('input, textarea, select').forEach(el => {
+    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else if (el.type === 'number') el.value = '01';
+    else el.value = '';
+  });
+  render();
+});
+
+document.getElementById('btn-sample').addEventListener('click', () => {
+  document.getElementById('f-phase').value = 'COM';
+  document.getElementById('f-domain').value = 'D';
+  document.getElementById('f-num').value = '05';
+  document.getElementById('f-title').value = 'Quad Maritime Intelligence Fusion Cell';
+  document.getElementById('f-actors').value = 'United States, Japan, Australia, India';
+  document.getElementById('f-risk').value = 'LOW';
+  document.getElementById('f-action').value = 'The Quad establishes a standing maritime-intelligence fusion cell in Darwin, integrating national MDA feeds from all four members and producing a shared Indo-Pacific common operating picture updated every 15 minutes.';
+  document.getElementById('f-effect').value = 'Quad members gain +2 Maritime Intelligence in the Indo-Pacific. China grey-zone maritime operations are 40% more likely to be detected and attributed.';
+  document.getElementById('f-best').value = 'The fusion cell delivers actionable warning 48 hours before a major Chinese maritime coercion event, enabling pre-positioning and diplomatic response.';
+  document.getElementById('f-partial').value = 'India restricts its data sharing to non-LAC-related feeds, limiting coverage to maritime-only; the cell functions but Indian participation is partial.';
+  document.getElementById('f-backfire').value = 'A cyber breach exposes the cell\'s collection methods and Indian participation, triggering a public backlash in New Delhi and suspension of Indian data flow.';
+  document.getElementById('f-counters').value = 'China Commercial Satellite Degradation (I/M)\nChina Maritime Militia Surge (M)';
+  document.getElementById('f-constraints').value = 'India retains a political sensitivity to overt intelligence alliance structures and will not publicly acknowledge fusion cell participation\nData-sharing protocols must satisfy all four members\' national law — slow integration\nAustralian physical location makes the cell a soft target for information operations';
+  document.getElementById('f-assumptions').value = 'All four Quad members accept the political framing that fusion is non-treaty and not an "alliance"\nSufficient SIGINT and GEOINT interoperability standards have matured by 2030\nChina does not escalate to kinetic response against the fusion cell itself';
+  document.getElementById('f-strategy').value = 'The Quad\'s strength is structural ambiguity — it is more than dialogue, less than an alliance. A fusion cell is the minimum viable operational organ; it creates hard capability without crossing the alliance threshold that would trigger Indian reservations.';
+  document.getElementById('f-historical').value = '**2014 Information Fusion Centre (IFC) Singapore:** Demonstrated that multi-national maritime fusion can work without treaty obligations\n**2020 Five Eyes OSINT Maritime Fusion Pilot:** Proved MDA-only information sharing was politically feasible even in tense geopolitical periods';
+  render();
+});
+
+// Initial render
+render();
+
+// ============================================================================
+// COUNTRY CHIP PICKER — pulls live country list from engine-data.js so
+// authors don't have to memorize spelling and the new global-expansion
+// countries (Israel, Iran, Ukraine, Nigeria, EU, NATO, etc.) appear
+// automatically on every rebuild.
+// ============================================================================
+(function setupCountryChips() {
+  const chipsEl = document.getElementById('country-chips');
+  const inputEl = document.getElementById('f-actors');
+  if (!chipsEl || !inputEl) return;
+
+  // Tier 1: read window.__ENGINE_DATA (loaded via the sidecar script tag)
+  // Tier 2: fallback — fetch engine-data.js text and eval it (for browsers
+  //         that loaded the page from a file:// URL where script src may
+  //         have failed silently)
+  // Tier 3: hard-coded baseline so the picker still works if data is missing
+  function getCountries() {
+    if (window.__ENGINE_DATA && Array.isArray(window.__ENGINE_DATA.cards)) {
+      const set = new Set();
+      for (const c of window.__ENGINE_DATA.cards) {
+        for (const a of (c.actors || [])) set.add(a);
+      }
+      return [...set].sort();
+    }
+    return [
+      'United States','China','Russia','Japan','India','Australia',
+      'United Kingdom','France','Germany','Italy','Spain','Netherlands',
+      'Norway','Poland','Ukraine','EU','NATO','South Korea','Taiwan',
+      'DPRK','Philippines','Singapore','Malaysia','Canada','New Zealand',
+      'Israel','Iran','Saudi Arabia','UAE','Turkey','Egypt','Qatar',
+      'Pakistan','Bangladesh','Sri Lanka','Afghanistan','Kazakhstan',
+      'Uzbekistan','Nigeria','South Africa','Ethiopia','Kenya','Morocco',
+      'DRC','Belgium','IEA','ASEAN Member',
+    ];
+  }
+
+  function currentSelected() {
+    return new Set(
+      inputEl.value.split(',').map(s => s.trim()).filter(Boolean)
+    );
+  }
+
+  function setSelected(set) {
+    inputEl.value = [...set].join(', ');
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    refresh();
+  }
+
+  function refresh() {
+    const sel = currentSelected();
+    chipsEl.innerHTML = '';
+    for (const country of getCountries()) {
+      const on = sel.has(country);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.textContent = country;
+      chip.style.cssText =
+        'font-size:10px;padding:3px 9px;border-radius:11px;cursor:pointer;' +
+        'font-family:inherit;letter-spacing:0.3px;transition:all .12s;' +
+        (on
+          ? 'background:var(--accent);color:#000;border:1px solid var(--accent);'
+          : 'background:transparent;color:var(--text2);border:1px solid var(--border);');
+      chip.addEventListener('mouseenter', () => {
+        if (!sel.has(country)) chip.style.borderColor = 'var(--accent)';
+      });
+      chip.addEventListener('mouseleave', () => {
+        if (!sel.has(country)) chip.style.borderColor = 'var(--border)';
+      });
+      chip.addEventListener('click', () => {
+        const cur = currentSelected();
+        if (cur.has(country)) cur.delete(country);
+        else cur.add(country);
+        setSelected(cur);
+      });
+      chipsEl.appendChild(chip);
+    }
+  }
+
+  inputEl.addEventListener('input', refresh);
+  refresh();
+})();
+</script>
+</body>
+</html>
