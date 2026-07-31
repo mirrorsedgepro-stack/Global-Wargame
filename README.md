@@ -11,7 +11,7 @@ A tabletop wargame engine built as a small set of standalone HTML pages. Include
 - **globe.html** — Live 3D globe popup. Sun-lit Earth with real GSHHS coastlines and political borders. Receives state from the engine via postMessage.
 - **card-builder.html** — Authoring tool for new cards.
 - **theme.css** — Shared design tokens used by `home.html`.
-- **Action cards** — 72 `.html` files, one per card, named `PHASE-DOMAIN-NN-slug.html`.
+- **cards/** — Action card `.html` files, one per card, named `PHASE-DOMAIN-NN-slug.html`.
 
 ## Quick start
 
@@ -19,7 +19,7 @@ Open **home.html** in any modern browser. From there:
 
 1. **Operations Center** — browse all 72 cards.
 2. **Engine** → Play Game tab → add 2–4 players → Start Game → click ◉ Open Globe View.
-3. **Card Builder** — author new cards, download as `.html`, drop into this folder.
+3. **Card Builder** — author new cards, download as `.html`, drop into the `cards/` folder.
 
 No install, no server, no network. Everything runs locally.
 
@@ -107,7 +107,7 @@ If the popup is blocked, allow popups for the page and click ◉ Open Globe View
 1. Open **card-builder.html**.
 2. Fill in title, actor, phase, domain, risk, and the action/effect/counter blocks.
 3. Click **Download** to save the `.html` file.
-4. Drop the file into this folder.
+4. Drop the file into the `cards/` folder.
 5. Re-run `python3 pack/build.py` so the engine picks it up.
 
 ## Rebuilding sidecars

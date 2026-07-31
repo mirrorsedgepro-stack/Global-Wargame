@@ -258,7 +258,7 @@
   </header>
 
   <div class="notice">
-    Fill in the form and the preview on the right updates live. Click <strong>Download .html</strong> and drop the file into this folder — its filename is auto-generated from ID + title. To add new cards to the filterable Operations Center, open <code>index.html</code> and click <strong>+ Import card files</strong> to pick up anything new in the folder.
+    Fill in the form and the preview on the right updates live. Click <strong>Download .html</strong> and drop the file into the <code>cards/</code> folder — its filename is auto-generated from ID + title. To add new cards to the filterable Operations Center, open <code>index.html</code> and click <strong>+ Import card files</strong> to pick up anything new in the folder.
   </div>
 
   <!-- FORM PANEL -->
@@ -542,8 +542,8 @@ ${data.historical.map(h => `<li class="">${boldify(h)}</li>`).join('\n')}
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${cid}: ${title}</title>
-<link rel="stylesheet" href="theme.css">
-<script src="theme.js"><\/script>
+<link rel="stylesheet" href="../theme.css">
+<script src="../theme.js"><\/script>
 <style>
   :root {
     --domain: ${domainColor};
@@ -636,7 +636,7 @@ ${data.historical.map(h => `<li class="">${boldify(h)}</li>`).join('\n')}
 <div id="progress-bar"></div>
 <div class="wrapper">
   <div class="nav-row">
-    <a class="nav-back" href="index.html">← Operations Center</a>
+    <a class="nav-back" href="../index.html">← Operations Center</a>
   </div>
 
   <div class="breadcrumb">
