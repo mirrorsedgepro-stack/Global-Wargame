@@ -1,0 +1,2289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Global Wargame · Operations Display</title>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
+<style>
+  :root {
+
+    --arc: #dc2626;
+
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    height: 100vh;
+    position: relative;
+    z-index: 2;
+  }
+
+  header.top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--panel) 95%, transparent),
+      color-mix(in srgb, var(--panel) 70%, transparent));
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  header.top h1 {
+    font-size: 14px; font-weight: 300; letter-spacing: 3px; color: var(--text);
+    text-transform: uppercase;
+  }
+  header.top h1 strong { color: var(--accent); font-weight: 700; }
+  header.top .live {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--good); box-shadow: 0 0 10px var(--good);
+    margin-right: 10px; animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .hdr-stats { display: flex; gap: 28px; }
+  .hdr-stat { text-align: right; }
+  .hdr-stat .val { font: 600 18px 'Courier New', monospace; color: var(--accent); letter-spacing: 1px; }
+  .hdr-stat .lbl { font-size: 9px; color: var(--text3); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+
+  .turn-banner {
+    padding: 10px 22px;
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; letter-spacing: 2px;
+  }
+  .turn-banner .player-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 12px; border: 1px solid var(--border); border-radius: 3px;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .turn-banner .player-tag .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  main.stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    overflow: hidden;
+  }
+  .globe-box {
+    position: relative;
+    background: var(--bg);
+    overflow: hidden;
+    cursor: grab;
+  }
+  .globe-box.dragging { cursor: grabbing; }
+  #globe-canvas { display: block; width: 100%; height: 100%; }
+
+  .globe-overlay {
+    position: absolute; top: 14px; left: 18px;
+    font: 10px 'Courier New', monospace; color: var(--text3);
+    letter-spacing: 1px; line-height: 1.6; pointer-events: none;
+    max-width: 260px;
+  }
+  .globe-overlay strong { color: var(--accent); }
+  #inspector {
+    margin-top: 12px; padding: 10px 12px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    pointer-events: auto;
+    display: none;
+    font-size: 10.5px;
+  }
+  #inspector.visible { display: block; }
+  #inspector .ins-name { font-size: 12px; font-weight: 700; color: var(--text); letter-spacing: 1px; margin-bottom: 6px; }
+  #inspector .dime-row { display: flex; gap: 4px; margin-bottom: 4px; }
+  #inspector .dime-cell {
+    flex: 1; padding: 4px 6px; border-radius: 2px;
+    text-align: center; font: 600 10px monospace;
+    border: 1px solid var(--hairline);
+  }
+  #inspector .dime-cell .dlabel { display: block; font-size: 9px; letter-spacing: 1px; opacity: 0.7; margin-bottom: 2px; }
+  #inspector .dime-cell .dval { display: block; font-size: 13px; }
+  #inspector .ins-meta { color: var(--text3); font-size: 10px; line-height: 1.5; margin-top: 6px; }
+  #inspector .ins-meta b { color: var(--text2); }
+  #inspector .ins-delta { color: var(--good); font-weight: 700; margin-left: 4px; }
+  #inspector .ins-delta.neg { color: #dc2626; }
+
+  .rotate-hint {
+    position: absolute; bottom: 14px; left: 18px;
+    font: 10px 'Courier New', monospace; color: var(--text3);
+    letter-spacing: 1px; pointer-events: none;
+    opacity: 0.7;
+  }
+  .dime-legend {
+    position: absolute; bottom: 14px; right: 18px;
+    display: flex; gap: 10px;
+    font: 10px 'Courier New', monospace; color: var(--text3);
+    letter-spacing: 1px; pointer-events: none;
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+    padding: 6px 10px; border: 1px solid var(--border); border-radius: 3px;
+  }
+  .dime-legend .it { display: flex; align-items: center; gap: 5px; }
+  .dime-legend .bar { display: inline-block; width: 10px; height: 3px; border-radius: 1px; }
+
+  .sun-pos {
+    position: absolute; top: 14px; right: 18px;
+    font: 9px 'Courier New', monospace; color: var(--text3);
+    letter-spacing: 2px; pointer-events: none; text-align: right;
+  }
+  .sun-pos b { color: var(--warn); }
+
+  aside.rail {
+    display: flex; flex-direction: column;
+    border-left: 1px solid var(--border);
+    background: color-mix(in srgb, var(--panel) 85%, transparent);
+    overflow: hidden;
+  }
+  .rail-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .rail-section h3 {
+    font-size: 10px; letter-spacing: 3px; color: var(--text3);
+    text-transform: uppercase; margin-bottom: 10px; font-weight: 600;
+  }
+  .player-card {
+    padding: 8px 10px; margin-bottom: 6px;
+    border: 1px solid var(--border); border-radius: 3px;
+    background: color-mix(in srgb, var(--panel) 50%, transparent);
+    font-size: 12px; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .player-card:hover { border-color: var(--text3); }
+  .player-card.active { border-color: var(--accent); background: rgba(96,165,250,0.08); }
+  .player-card.selected { border-color: var(--warn); background: rgba(245,158,11,0.06); }
+  .player-card .pc-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .player-card .pc-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .player-card .pc-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .player-card .pc-fav { font-family: 'Courier New', monospace; color: var(--accent); font-size: 13px; }
+  .player-card .pc-dime { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3px; }
+  .player-card .pc-dime .pdc {
+    height: 4px; border-radius: 1px; position: relative; background: var(--hairline);
+  }
+  .player-card .pc-dime .pdc .fill {
+    position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1px;
+    transition: width 0.45s ease-out, background-color 0.3s;
+  }
+  .player-card .pc-dime .pdc.delta-up { box-shadow: 0 0 6px rgba(34,197,94,0.8); }
+  .player-card .pc-dime .pdc.delta-dn { box-shadow: 0 0 6px rgba(239,68,68,0.8); }
+
+  .events { flex: 1; padding: 14px 16px; overflow-y: auto; }
+  .events h3 {
+    font-size: 10px; letter-spacing: 3px; color: var(--text3);
+    text-transform: uppercase; margin-bottom: 10px; font-weight: 600;
+  }
+  .event {
+    padding: 10px 12px; margin-bottom: 8px;
+    border-left: 2px solid var(--accent);
+    background: color-mix(in srgb, var(--panel) 50%, transparent);
+    font-size: 11px;
+    animation: slidein 0.4s ease-out;
+  }
+  @keyframes slidein { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .event .ev-head {
+    display: flex; justify-content: space-between; margin-bottom: 4px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    font-size: 10px;
+  }
+  .event .ev-turn { color: var(--text3); }
+  .event .ev-body { color: var(--text2); line-height: 1.5; }
+  .event .ev-dime {
+    margin-top: 6px; display: flex; gap: 5px; flex-wrap: wrap;
+    font: 600 10px monospace;
+  }
+  .event .ev-dime .chip { padding: 1px 6px; border-radius: 2px; letter-spacing: 1px; }
+  .event.best { border-left-color: var(--good); }
+  .event.best .ev-head { color: var(--good); }
+  .event.partial { border-left-color: var(--warn); }
+  .event.partial .ev-head { color: var(--warn); }
+  .event.backfire { border-left-color: var(--pulse); }
+  .event.backfire .ev-head { color: var(--pulse); }
+  .events::-webkit-scrollbar { width: 4px; }
+  .events::-webkit-scrollbar-thumb { background: var(--border); }
+
+  footer.bottom {
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 10px 22px;
+    border-top: 1px solid var(--border);
+    background: linear-gradient(0deg, color-mix(in srgb, var(--panel) 90%, transparent), color-mix(in srgb, var(--panel) 50%, transparent));
+  }
+  .commodity { display: flex; align-items: center; gap: 10px; padding: 6px 14px; }
+  .commodity .nm { font-size: 10px; letter-spacing: 2px; color: var(--text3); text-transform: uppercase; }
+  .commodity .px { font: 600 15px 'Courier New', monospace; color: var(--text); }
+  .commodity .dt { font: 600 11px 'Courier New', monospace; padding: 2px 8px; border-radius: 3px; }
+  .commodity .dt.up { background: rgba(34,197,94,0.15); color: var(--good); }
+  .commodity .dt.dn { background: rgba(239,68,68,0.15); color: #dc2626; }
+  .commodity .dt.flat { background: rgba(143,163,199,0.1); color: var(--text3); }
+
+  /* ---------- Rail tabs (Social Pulse / Events) ---------- */
+  .rail-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+  }
+  .rail-tabs .rt-btn {
+    flex: 1; background: none; color: var(--text3);
+    border: 0; border-bottom: 2px solid transparent;
+    padding: 10px 14px; font-family: inherit;
+    font-size: 10px; letter-spacing: 2px; font-weight: 600;
+    text-transform: uppercase; cursor: pointer;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .rail-tabs .rt-btn:hover { color: var(--text2); }
+  .rail-tabs .rt-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .rail-tabs .rt-btn .rt-count {
+    display: inline-block; margin-left: 6px;
+    font: 700 9px 'Courier New', monospace;
+    color: var(--text3); letter-spacing: 0;
+  }
+  .rail-tabs .rt-btn.active .rt-count { color: var(--accent); }
+
+  .rail-pane { flex: 1; padding: 14px 14px; overflow-y: auto; }
+  .rail-pane[hidden] { display: none; }
+  .rail-pane::-webkit-scrollbar { width: 4px; }
+  .rail-pane::-webkit-scrollbar-thumb { background: var(--border); }
+
+  /* ---------- Social Pulse — tweet-style feed ---------- */
+  .pulse-empty {
+    color: var(--text3); font-size: 11px; font-style: italic;
+    text-align: center; padding: 20px 8px;
+  }
+  .tweet {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 10px;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    animation: tw-in 0.35s ease-out;
+  }
+  @keyframes tw-in { from { transform: translateX(12px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .tweet.fresh { background: linear-gradient(90deg, rgba(96,165,250,0.06), transparent); }
+  .tweet .tw-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font: 700 12px 'Segoe UI', sans-serif;
+    color: #fff; letter-spacing: 0;
+    border: 1px solid var(--hairline);
+  }
+  .tweet .tw-head {
+    display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+  .tweet .tw-name {
+    color: var(--text); font-weight: 700; max-width: 130px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .tweet .tw-verify { color: var(--accent); font-size: 11px; line-height: 1; }
+  .tweet .tw-verify.gold { color: var(--warn); }
+  .tweet .tw-handle { color: var(--text3); font-size: 11px; }
+  .tweet .tw-time   { color: var(--text3); font-size: 11px; }
+  .tweet .tw-time::before { content: '·'; margin-right: 4px; color: var(--text3); }
+  .tweet .tw-text {
+    color: var(--text); font-size: 12.5px; line-height: 1.45;
+    word-wrap: break-word; white-space: pre-wrap;
+  }
+  .tweet .tw-text .hashtag,
+  .tweet .tw-text .mention { color: var(--accent); }
+  .tweet .tw-text .neg { color: #dc2626; }
+  .tweet .tw-text .pos { color: var(--good); }
+  .tweet .tw-meta {
+    display: flex; gap: 14px; margin-top: 6px;
+    color: var(--text3); font-size: 10.5px;
+  }
+  .tweet .tw-meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .tweet .tw-meta .ic { opacity: 0.65; }
+
+  .pulse-card-tag {
+    display: inline-block;
+    margin: 4px 0 8px; padding: 4px 8px;
+    background: rgba(96,165,250,0.08);
+    border-left: 2px solid var(--accent);
+    color: var(--text2); font-size: 10px;
+    letter-spacing: 1.5px; text-transform: uppercase;
+  }
+  .pulse-card-tag b { color: var(--accent); font-weight: 700; }
+
+  /* ----------------------------------------------------------------
+     LIGHT MODE — stronger grey outlines so each functional area
+     reads as a defined box. Only applies when data-theme="light";
+     dark mode keeps its subtle borders unchanged.
+     ---------------------------------------------------------------- */
+  :root[data-theme="light"] header.top,
+  :root[data-theme="light"] .turn-banner,
+  :root[data-theme="light"] aside.rail,
+  :root[data-theme="light"] footer.bottom {
+    border-color: var(--border-strong);
+  }
+  :root[data-theme="light"] .globe-box {
+    border: 1px solid var(--border-strong);
+    border-top: 0;     /* turn-banner already provides the top edge */
+    border-bottom: 0;  /* footer.bottom provides the bottom edge */
+  }
+  :root[data-theme="light"] aside.rail {
+    border-left-width: 1px;
+    border-left-style: solid;
+    box-shadow: -1px 0 0 0 var(--border-strong) inset;
+  }
+  :root[data-theme="light"] footer.bottom {
+    border-top: 1px solid var(--border-strong);
+  }
+  :root[data-theme="light"] .rail-section,
+  :root[data-theme="light"] .events,
+  :root[data-theme="light"] .rail-tabs {
+    border-color: var(--border-strong);
+  }
+  :root[data-theme="light"] .player-card,
+  :root[data-theme="light"] .event,
+  :root[data-theme="light"] .tweet,
+  :root[data-theme="light"] #inspector,
+  :root[data-theme="light"] .dime-legend {
+    border-color: var(--border-strong);
+    box-shadow: 0 1px 2px rgba(15, 30, 70, 0.04);
+  }
+  :root[data-theme="light"] .player-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 1px 4px rgba(15,30,70,0.06);
+  }
+  :root[data-theme="light"] .player-card.selected {
+    border-color: var(--warn);
+    box-shadow: 0 0 0 1px var(--warn), 0 1px 4px rgba(15,30,70,0.06);
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <header class="top">
+    <h1><span class="live"></span>Operations Display <strong>· GLOBE</strong></h1>
+    <div class="hdr-stats">
+      <div class="hdr-stat"><div class="val" id="stat-risk">—</div><div class="lbl">Global Risk</div></div>
+      <div class="hdr-stat"><div class="val" id="stat-tempo">—</div><div class="lbl">Tempo</div></div>
+      <div class="hdr-stat"><div class="val" id="stat-turn">—</div><div class="lbl">Turn</div></div>
+    </div>
+  </header>
+
+  <div class="turn-banner">
+    <div>
+      <span id="banner-player" class="player-tag"><span class="dot" style="background:#2563EB"></span><span>Awaiting player</span></span>
+    </div>
+    <div id="banner-event" style="color:var(--text2); font-size:11px;">Waiting for game to start…</div>
+  </div>
+
+  <main class="stage">
+    <div class="globe-box" id="globe-box">
+      <canvas id="globe-canvas"></canvas>
+      <div class="globe-overlay">
+        <div><strong>EARTH</strong> · Orthographic · GSHHS-h + political borders</div>
+        <div id="cam-readout">Lat 0° · Lon 0°</div>
+        <div id="inspector">
+          <div class="ins-name" id="ins-name">—</div>
+          <div class="dime-row">
+            <div class="dime-cell" style="border-color:var(--d-D)"><span class="dlabel" style="color:var(--d-D)">D</span><span class="dval" id="ins-d">—</span></div>
+            <div class="dime-cell" style="border-color:var(--d-I)"><span class="dlabel" style="color:var(--d-I)">I</span><span class="dval" id="ins-i">—</span></div>
+            <div class="dime-cell" style="border-color:var(--d-M)"><span class="dlabel" style="color:var(--d-M)">M</span><span class="dval" id="ins-m">—</span></div>
+            <div class="dime-cell" style="border-color:var(--d-E)"><span class="dlabel" style="color:var(--d-E)">E</span><span class="dval" id="ins-e">—</span></div>
+          </div>
+          <div class="ins-meta" id="ins-meta"></div>
+        </div>
+      </div>
+      <div class="sun-pos" id="sun-pos"></div>
+      <div class="rotate-hint">DRAG TO ROTATE · SCROLL TO ZOOM · CLICK A MARKER</div>
+      <div class="dime-legend">
+        <div class="it"><span class="bar" style="background:var(--d-D)"></span>D</div>
+        <div class="it"><span class="bar" style="background:var(--d-I)"></span>I</div>
+        <div class="it"><span class="bar" style="background:var(--d-M)"></span>M</div>
+        <div class="it"><span class="bar" style="background:var(--d-E)"></span>E</div>
+      </div>
+    </div>
+    <aside class="rail">
+      <div class="rail-section">
+        <h3>Players · DIME</h3>
+        <div id="player-list"><em style="color:var(--text3); font-size:11px;">No active players</em></div>
+      </div>
+      <div class="rail-tabs" id="rail-tabs">
+        <button type="button" class="rt-btn active" data-rail="feed">Social Pulse<span class="rt-count" id="rt-count-feed">0</span></button>
+        <button type="button" class="rt-btn" data-rail="events">Events<span class="rt-count" id="rt-count-events">0</span></button>
+      </div>
+      <div class="rail-pane" id="feed-pane">
+        <div id="social-feed"><div class="pulse-empty">No posts yet — markets are quiet.</div></div>
+      </div>
+      <div class="rail-pane" id="events-pane" hidden>
+        <div id="event-list"><em style="color:var(--text3); font-size:11px;">Waiting for action…</em></div>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="bottom" id="commodities"></footer>
+</div>
+
+<script id="continents-data" type="application/json">__CONTINENTS_JSON__</script>
+<script id="borders-data" type="application/json">__BORDERS_JSON__</script>
+
+<script>
+// ================================================================
+// DATA
+// ================================================================
+const CONTINENTS = JSON.parse(document.getElementById('continents-data').textContent);
+const BORDERS    = JSON.parse(document.getElementById('borders-data').textContent);
+
+// Flatten each continent polygon (stored as [lat1,lon1,lat2,lon2,...]) into pairs.
+// They come as flat float arrays to save bytes; keep original for mask raster,
+// project per-frame for on-sphere drawing.
+const CONT_PAIRS = CONTINENTS.map(flat => {
+  const pts = [];
+  for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i+1]]);
+  return pts;
+});
+const BORDER_PAIRS = BORDERS.map(flat => {
+  const pts = [];
+  for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i+1]]);
+  return pts;
+});
+
+// Country positions (lat, lon)
+const COUNTRY_POS = {
+  // North America
+  "United States":[38.9,-77.0], "USA":[38.9,-77.0],
+  "Canada":[45.4,-75.7],
+  // East Asia
+  "China":[39.9,116.4],
+  "Japan":[35.7,139.7],
+  "Taiwan":[25.0,121.5],
+  "South Korea":[37.6,127.0], "ROK":[37.6,127.0],
+  "DPRK":[39.0,125.8], "North Korea":[39.0,125.8],
+  // South & Southeast Asia
+  "India":[28.6,77.2],
+  "Pakistan":[33.7,73.0],
+  "Bangladesh":[23.7,90.4],
+  "Sri Lanka":[6.9,79.9],
+  "Afghanistan":[34.5,69.2],
+  "Philippines":[14.6,121.0],
+  "Indonesia":[-6.2,106.8],
+  "Singapore":[1.3,103.8],
+  "Malaysia":[3.1,101.7],
+  "Vietnam":[21.0,105.8],
+  "Cambodia":[11.6,104.9],
+  "Laos":[17.9,102.6],
+  "Myanmar":[16.8,96.2],
+  "Thailand":[13.7,100.5],
+  "ASEAN Member":[13.7,100.5],
+  // Central Asia
+  "Kazakhstan":[51.2,71.4],
+  "Uzbekistan":[41.3,69.2],
+  // Oceania
+  "Australia":[-35.3,149.1],
+  "New Zealand":[-41.3,174.8],
+  // Europe
+  "United Kingdom":[51.5,-0.1], "UK":[51.5,-0.1],
+  "France":[48.8,2.3],
+  "Germany":[52.5,13.4],
+  "Poland":[52.2,21.0],
+  "Italy":[41.9,12.5],
+  "Spain":[40.4,-3.7],
+  "Netherlands":[52.4,4.9],
+  "Norway":[59.9,10.8],
+  "Ukraine":[50.5,30.5],
+  "Belgium":[50.8,4.4],
+  // Russia & blocs
+  "Russia":[55.8,37.6],
+  "EU":[50.8,4.4], "European Union":[50.8,4.4],
+  "NATO":[50.8,4.4],
+  // Middle East
+  "Israel":[31.8,35.2],
+  "Iran":[35.7,51.4],
+  "Saudi Arabia":[24.7,46.7],
+  "UAE":[24.5,54.4], "United Arab Emirates":[24.5,54.4],
+  "Turkey":[39.9,32.9],
+  "Egypt":[30.0,31.2],
+  "Qatar":[25.3,51.5],
+  // Africa
+  "Nigeria":[9.1,7.5],
+  "South Africa":[-25.7,28.2],
+  "Ethiopia":[9.0,38.7],
+  "Kenya":[-1.3,36.8],
+  "Morocco":[34.0,-6.8],
+  "DRC":[-4.3,15.3], "Democratic Republic of Congo":[-4.3,15.3],
+  // International orgs (placed at HQ)
+  "IEA":[48.8,2.3],
+};
+
+const DIME_COLORS = { D: '#2563EB', I: '#7c3aed', M: '#dc2626', E: '#d97706' };
+const DIME_ORDER  = ['D', 'I', 'M', 'E'];
+const DIME_MAX    = 100;   // engine uses 0–100 per DIME component
+
+// ================================================================
+// 3D MATH
+// ================================================================
+const AXIAL_TILT = 23.44 * Math.PI / 180;  // real Earth axial obliquity
+
+// Spherical → unit-sphere Cartesian.
+//   lon=0   → +Z   (camera-facing center at default rotation)
+//   lon=90  → +X   (east is right on screen)
+//   lon=-90 → -X   (west is left)
+//   lat=90  → +Y   (north is up)
+// This convention is what autoPan(targetRotY = -lon*π/180) and the lat/lon
+// readout assume — keep it consistent or markers stop landing on countries.
+function latLonToXYZ(lat, lon) {
+  const phi = (90 - lat) * Math.PI / 180;
+  const theta = lon * Math.PI / 180;
+  return {
+    x: Math.sin(phi) * Math.sin(theta),
+    y: Math.cos(phi),
+    z: Math.sin(phi) * Math.cos(theta),
+  };
+}
+function rotateY(p, a) { const c = Math.cos(a), s = Math.sin(a); return { x: p.x*c + p.z*s, y: p.y, z: -p.x*s + p.z*c }; }
+function rotateX(p, a) { const c = Math.cos(a), s = Math.sin(a); return { x: p.x, y: p.y*c - p.z*s, z: p.y*s + p.z*c }; }
+function rotateZ(p, a) { const c = Math.cos(a), s = Math.sin(a); return { x: p.x*c - p.y*s, y: p.x*s + p.y*c, z: p.z }; }
+
+// Axis tilt applied BEFORE viewer rotation (world -> tilt -> camera)
+function worldToCamera(p, rx, ry) {
+  // 1) Apply Earth's axial tilt (rotation around Z by -AXIAL_TILT puts N pole off-vertical)
+  const t = rotateZ(p, -AXIAL_TILT);
+  // 2) Apply user rotation (spin around polar axis, then elevate)
+  return rotateX(rotateY(t, ry), rx);
+}
+
+// ================================================================
+// SUN POSITION (from current date, approximate subsolar point)
+// ================================================================
+function subsolarPoint(date) {
+  // Day of year
+  const start = new Date(date.getUTCFullYear(), 0, 0);
+  const diff = date - start + (start.getTimezoneOffset() - date.getTimezoneOffset()) * 60000;
+  const doy = diff / 86400000;
+  // Solar declination (Cooper's formula)
+  const decl = 23.44 * Math.sin(2 * Math.PI * (doy - 81) / 365);
+  // Solar hour angle (longitude where sun is overhead)
+  const utHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+  const subLon = 180 - utHours * 15;  // degrees east
+  return { lat: decl, lon: subLon };
+}
+
+function sunVector() {
+  const sp = subsolarPoint(new Date());
+  // Build sun direction in world (pre-tilt) coords
+  return latLonToXYZ(sp.lat, sp.lon);
+}
+
+// ================================================================
+// LAND MASK (720×360 equirectangular bitmap for fast per-pixel lookup)
+// ================================================================
+const MASK_W = 720, MASK_H = 360;
+const LAND_MASK = new Uint8Array(MASK_W * MASK_H);
+(function rasterizeMask() {
+  const off = document.createElement('canvas');
+  off.width = MASK_W; off.height = MASK_H;
+  const oc = off.getContext('2d');
+  oc.fillStyle = '#000';
+  oc.fillRect(0, 0, MASK_W, MASK_H);
+  oc.fillStyle = '#fff';
+  for (const poly of CONT_PAIRS) {
+    oc.beginPath();
+    for (let i = 0; i < poly.length; i++) {
+      const [lat, lon] = poly[i];
+      const x = (lon + 180) / 360 * MASK_W;
+      const y = (90 - lat) / 180 * MASK_H;
+      if (i === 0) oc.moveTo(x, y);
+      else oc.lineTo(x, y);
+    }
+    oc.closePath();
+    oc.fill();
+  }
+  const img = oc.getImageData(0, 0, MASK_W, MASK_H).data;
+  for (let i = 0; i < MASK_W * MASK_H; i++) LAND_MASK[i] = img[i * 4] > 127 ? 1 : 0;
+})();
+function isLand(lat, lon) {
+  const x = ((lon + 180) % 360 + 360) % 360 / 360 * MASK_W | 0;
+  const y = (90 - lat) / 180 * MASK_H | 0;
+  if (y < 0 || y >= MASK_H) return false;
+  return LAND_MASK[y * MASK_W + x] === 1;
+}
+
+// Pre-generate land dots. Density adapts with latitude (real cos(lat) spherical correction).
+const LAND_DOTS = [];
+(function generateLandDots() {
+  for (let lat = -78; lat <= 82; lat += 1.2) {
+    const lonStep = 1.2 / Math.max(0.2, Math.cos(lat * Math.PI / 180));
+    for (let lon = -180; lon <= 180; lon += lonStep) {
+      if (isLand(lat, lon)) {
+        const p = latLonToXYZ(lat, lon);
+        LAND_DOTS.push({ x: p.x, y: p.y, z: p.z, lat: lat });
+      }
+    }
+  }
+})();
+
+// Pre-generate star field (fixed positions in camera space, randomized once)
+const STARS = [];
+(function generateStars() {
+  const rng = mulberry32(0x12345);
+  for (let i = 0; i < 420; i++) {
+    STARS.push({ u: rng(), v: rng(), sz: 0.3 + rng() * 1.6, br: 0.25 + rng() * 0.75 });
+  }
+})();
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = a;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ================================================================
+// STATE
+// ================================================================
+const state = {
+  rotY: 0,
+  // Sensible global default: ~lat 25°N, lon 30°E — centers on the
+  // Mediterranean / Middle East so Europe, Africa, ME, India and Russia
+  // are all visible at once. (userRotY = -lon*π/180; userRotX = lat*π/180.)
+  userRotY: -0.524,   // -30° → lon 30°E centered
+  userRotX: 0.436,    //  25° → lat 25°N centered
+  autoRotate: true,
+  isDragging: false,
+  dragStartX: 0, dragStartY: 0,
+  dragStartRotY: 0, dragStartRotX: 0,
+  dragMoved: false,
+  zoom: 1.0,
+  pulses: [],
+  arcs: [],
+  dimeFlashes: {},
+  world: null,        // flat map: {countryName: {dime:{D,I,M,E}, gdp, stockpiles, morale, favour}}
+  worldPrev: null,
+  game: null,
+  players: [],
+  events: [],
+  selected: null,
+  markerScreenPos: {},
+  commodities: [
+    { nm: 'OIL',        px: 82.40,  dt: 0, key: 'energy' },
+    { nm: 'RARE-EARTH', px: 104.50, dt: 0, key: 'rareEarths' },
+    { nm: 'SEMIS',      px: 256.80, dt: 0, key: 'semiconductors' },
+    { nm: 'GRAIN',      px: 38.20,  dt: 0, key: 'grain' },
+  ],
+};
+const PLAYER_COLORS = ['#2563EB', '#dc2626', '#16a34a', '#d97706'];
+
+// ================================================================
+// CANVAS
+// ================================================================
+const canvas = document.getElementById('globe-canvas');
+const ctx = canvas.getContext('2d');
+function resize() {
+  const boxEl = document.getElementById('globe-box');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = boxEl.clientWidth * dpr;
+  canvas.height = boxEl.clientHeight * dpr;
+  canvas.style.width = boxEl.clientWidth + 'px';
+  canvas.style.height = boxEl.clientHeight + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function getRotation() { return { rx: state.userRotX, ry: state.rotY + state.userRotY }; }
+
+// ================================================================
+// DRAWING
+// ================================================================
+
+// Earth palette — switches between dark (operations) and light (atlas)
+// based on the html[data-theme] attribute set by theme.js. Re-evaluated
+// every frame so the toggle works without a reload.
+function getEarthPalette() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (dark) return {
+    star:        (br, tw) => `rgba(200,220,255,${br * tw})`,
+    haloStops:   ['rgba(120,180,255,0.35)', 'rgba(96,165,250,0.12)', 'rgba(96,165,250,0)'],
+    ocean:       '#041228',
+    litStops:    ['rgba(130,180,240,0.85)','rgba(60,120,200,0.55)','rgba(20,50,100,0.35)','rgba(4,18,40,0)'],
+    shadowStops: ['rgba(0,0,0,0.55)','rgba(0,0,0,0)'],
+    rimStops:    ['rgba(96,165,250,0)','rgba(140,200,255,0.4)'],
+    grid:        'rgba(96,165,250,0.09)',
+    equator:     'rgba(96,165,250,0.22)',
+    border:      (sDot) => `rgba(255,220,140,${0.15 + sDot * 0.5})`,
+    landRGB:     (dayLight) => [
+                   60 + dayLight * 70,
+                   90 + dayLight * 100,
+                   130 + dayLight * 50,
+                 ],
+  };
+  // LIGHT theme — Earth as a clearly defined medium grey-blue disc
+  // (light-grey in spirit, but dark enough to pop against the page bg).
+  return {
+    star:        (br, tw) => `rgba(120,140,170,${br * tw * 0.4})`,
+    haloStops:   ['rgba(150,170,200,0.40)', 'rgba(120,140,180,0.14)', 'rgba(120,140,180,0)'],
+    ocean:       '#8E99AC',                          // medium grey-blue
+    litStops:    ['rgba(255,250,235,0.32)',          // gentle warm sun
+                  'rgba(220,225,235,0.20)',
+                  'rgba(170,180,200,0.10)',
+                  'rgba(130,140,160,0)'],
+    shadowStops: ['rgba(30,40,60,0.45)',             // stronger night side
+                  'rgba(30,40,60,0)'],
+    rimStops:    ['rgba(70,90,130,0)',
+                  'rgba(50,70,110,0.55)'],           // defined Fresnel edge
+    grid:        'rgba(70,90,130,0.18)',
+    equator:     'rgba(70,90,130,0.40)',
+    border:      (sDot) => `rgba(40,50,75,${0.30 + sDot * 0.35})`,
+    // Land slightly DARKER than ocean for contrast (continents read as
+    // distinct shapes), brightening on the lit hemisphere.
+    landRGB:     (dayLight) => [
+                   95  + dayLight * 35,
+                   105 + dayLight * 35,
+                   120 + dayLight * 35,
+                 ],
+  };
+}
+
+function drawStars(cssW, cssH) {
+  const P = getEarthPalette();
+  for (const s of STARS) {
+    const x = s.u * cssW, y = s.v * cssH;
+    const tw = 0.8 + 0.2 * Math.sin(performance.now() * 0.001 + s.u * 40);
+    ctx.fillStyle = P.star(s.br, tw);
+    ctx.fillRect(x - s.sz/2, y - s.sz/2, s.sz, s.sz);
+  }
+}
+
+// Rotate the sun vector into the SAME camera frame as world points
+function sunInCamera(rot) {
+  return worldToCamera(sunVector(), rot.rx, rot.ry);
+}
+
+function drawOcean(cx, cy, R, rot) {
+  const P = getEarthPalette();
+  // Atmospheric halo
+  const haloGrad = ctx.createRadialGradient(cx, cy, R*0.995, cx, cy, R*1.28);
+  haloGrad.addColorStop(0,   P.haloStops[0]);
+  haloGrad.addColorStop(0.4, P.haloStops[1]);
+  haloGrad.addColorStop(1,   P.haloStops[2]);
+  ctx.fillStyle = haloGrad;
+  ctx.beginPath(); ctx.arc(cx, cy, R*1.28, 0, Math.PI*2); ctx.fill();
+
+  // Base ocean
+  ctx.fillStyle = P.ocean;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.fill();
+
+  // Sun-lit hemisphere
+  const sun = sunInCamera(rot);
+  if (sun.z > -0.2) {
+    const sx = cx + sun.x * R;
+    const sy = cy - sun.y * R;
+    const lit = ctx.createRadialGradient(sx, sy, R * 0.05, sx, sy, R * 1.4);
+    lit.addColorStop(0,    P.litStops[0]);
+    lit.addColorStop(0.25, P.litStops[1]);
+    lit.addColorStop(0.6,  P.litStops[2]);
+    lit.addColorStop(1,    P.litStops[3]);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.clip();
+    ctx.fillStyle = lit;
+    ctx.fillRect(cx - R, cy - R, R*2, R*2);
+    ctx.restore();
+  }
+
+  // Night hemisphere overlay
+  const nx = cx - sun.x * R, ny = cy + sun.y * R;
+  const shadow = ctx.createRadialGradient(nx, ny, 0, nx, ny, R * 1.5);
+  shadow.addColorStop(0,    P.shadowStops[0]);
+  shadow.addColorStop(0.65, P.shadowStops[1]);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.clip();
+  ctx.fillStyle = shadow; ctx.fillRect(cx - R, cy - R, R*2, R*2);
+  ctx.restore();
+
+  // Rim lighting
+  const rimGrad = ctx.createRadialGradient(cx, cy, R*0.93, cx, cy, R);
+  rimGrad.addColorStop(0, P.rimStops[0]);
+  rimGrad.addColorStop(1, P.rimStops[1]);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.clip();
+  ctx.fillStyle = rimGrad;
+  ctx.fillRect(cx - R, cy - R, R*2, R*2);
+  ctx.restore();
+}
+
+function drawGrid(cx, cy, R, rot) {
+  const P = getEarthPalette();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = P.grid;
+  // Meridians
+  for (let lon = -180; lon < 180; lon += 30) {
+    let started = false; ctx.beginPath();
+    for (let lat = -90; lat <= 90; lat += 3) {
+      const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+      if (p.z < 0) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+      const x = cx + p.x * R, y = cy - p.y * R;
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // Parallels
+  for (let lat = -60; lat <= 60; lat += 30) {
+    let started = false; ctx.beginPath();
+    for (let lon = -180; lon <= 180; lon += 3) {
+      const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+      if (p.z < 0) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+      const x = cx + p.x * R, y = cy - p.y * R;
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // Equator (brighter)
+  ctx.strokeStyle = P.equator;
+  let started = false; ctx.beginPath();
+  for (let lon = -180; lon <= 180; lon += 2) {
+    const p = worldToCamera(latLonToXYZ(0, lon), rot.rx, rot.ry);
+    if (p.z < 0) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+    const x = cx + p.x * R, y = cy - p.y * R;
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+function drawLand(cx, cy, R, rot) {
+  const P = getEarthPalette();
+  const sun = sunVector();               // world-space sun dir
+  const sunCam = worldToCamera(sun, rot.rx, rot.ry);
+  const s = Math.max(0.9, R * 0.0065);
+  for (let i = 0; i < LAND_DOTS.length; i++) {
+    const ld = LAND_DOTS[i];
+    const pCam = worldToCamera(ld, rot.rx, rot.ry);
+    if (pCam.z < 0.02) continue;          // behind horizon
+    const sDot = ld.x*sun.x + ld.y*sun.y + ld.z*sun.z;
+    const dayLight = Math.max(0, sDot);
+    const viewLight = Math.max(0.15, pCam.z * 0.6 + 0.4);
+    const x = cx + pCam.x * R, y = cy - pCam.y * R;
+    const [r, g, b] = P.landRGB(dayLight);
+    const a = Math.min(1, viewLight * (0.4 + dayLight * 0.7));
+    ctx.fillStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;
+    ctx.fillRect(x - s/2, y - s/2, s, s);
+  }
+}
+
+function drawBorders(cx, cy, R, rot) {
+  const P = getEarthPalette();
+  const sun = sunVector();
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < BORDER_PAIRS.length; i++) {
+    const path = BORDER_PAIRS[i];
+    let started = false;
+    let lastLit = 0;
+    ctx.beginPath();
+    for (let j = 0; j < path.length; j++) {
+      const [lat, lon] = path[j];
+      const world = latLonToXYZ(lat, lon);
+      const cam = worldToCamera(world, rot.rx, rot.ry);
+      if (cam.z < 0.02) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+      const sDot = Math.max(0, world.x*sun.x + world.y*sun.y + world.z*sun.z);
+      if (!started) {
+        ctx.strokeStyle = P.border(sDot);
+        lastLit = sDot;
+        ctx.moveTo(cx + cam.x * R, cy - cam.y * R);
+        started = true;
+      } else {
+        ctx.lineTo(cx + cam.x * R, cy - cam.y * R);
+      }
+    }
+    if (started) ctx.stroke();
+  }
+}
+
+// DIME compass rose at a country marker
+function drawDimeRose(x, y, dime, flashes) {
+  if (!dime) return;
+  const baseR = 10;
+  const maxLen = 22;
+  const angles = { D: -Math.PI/2, I: 0, M: Math.PI/2, E: Math.PI };
+  for (const k of DIME_ORDER) {
+    const raw = Math.max(0, Math.min(DIME_MAX, (dime[k] != null ? dime[k] : 0)));
+    const len = (raw / DIME_MAX) * maxLen;
+    const a = angles[k];
+    const x1 = x + Math.cos(a) * baseR;
+    const y1 = y + Math.sin(a) * baseR;
+    const x2 = x + Math.cos(a) * (baseR + len);
+    const y2 = y + Math.sin(a) * (baseR + len);
+    const color = DIME_COLORS[k];
+    let lw = 2.5, glow = 0;
+    const f = flashes && flashes[k];
+    if (f && f.t < 1) {
+      const e = 1 - f.t;
+      lw = 2.5 + e * 2.8;
+      glow = e * 14;
+    }
+    if (glow > 0) { ctx.shadowColor = color; ctx.shadowBlur = glow; }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.shadowBlur = 0;
+    if (f && f.t < 0.6) {
+      const ah = 5;
+      const side = 0.45;
+      const leftX  = x2 - Math.cos(a) * ah + Math.sin(a) * ah * side;
+      const leftY  = y2 - Math.sin(a) * ah - Math.cos(a) * ah * side;
+      const rightX = x2 - Math.cos(a) * ah - Math.sin(a) * ah * side;
+      const rightY = y2 - Math.sin(a) * ah + Math.cos(a) * ah * side;
+      ctx.fillStyle = f.dir > 0 ? '#16a34a' : '#dc2626';
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(leftX, leftY); ctx.lineTo(rightX, rightY); ctx.closePath(); ctx.fill();
+    }
+  }
+}
+
+function drawCountryMarker(cx, cy, R, rot, name, lat, lon, color, isActive, isSelected, fav, dime) {
+  const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+  if (p.z >= -0.05) state.markerScreenPos[name] = { x: cx + p.x * R, y: cy - p.y * R, z: p.z };
+  else delete state.markerScreenPos[name];
+  if (p.z < -0.05) return;
+  const x = cx + p.x * R, y = cy - p.y * R;
+  const behind = p.z < 0;
+  const alpha = behind ? 0.22 : 1.0;
+
+  if (isSelected && !behind) {
+    ctx.beginPath(); ctx.arc(x, y, 32, 0, Math.PI*2);
+    ctx.strokeStyle = '#d97706'; ctx.setLineDash([4, 3]); ctx.lineWidth = 1; ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (isActive && !behind) {
+    ctx.beginPath(); ctx.arc(x, y, 36, 0, Math.PI*2);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.35; ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  if (!behind && dime) drawDimeRose(x, y, dime, state.dimeFlashes[name]);
+  if (!behind) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 10);
+    g.addColorStop(0, color + 'cc'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+  if (!behind) {
+    ctx.font = '600 11px "Segoe UI", system-ui';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText(name, x + 36, y - 2);
+    if (typeof fav === 'number') {
+      ctx.font = '600 10px "Courier New", monospace';
+      ctx.fillStyle = color;
+      ctx.fillText('FAV ' + fav.toFixed(0), x + 36, y + 12);
+    }
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawPulse(cx, cy, R, rot, lat, lon, t, color) {
+  const p = worldToCamera(latLonToXYZ(lat, lon), rot.rx, rot.ry);
+  if (p.z < 0) return;
+  const x = cx + p.x * R, y = cy - p.y * R;
+  const radius = 6 + t * 60;
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = Math.max(0, 1 - t);
+  ctx.lineWidth = 2.5 - t * 2;
+  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI*2); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+function drawArc(cx, cy, R, rot, from, to, t, color) {
+  const a = latLonToXYZ(from[0], from[1]);
+  const b = latLonToXYZ(to[0], to[1]);
+  const dot = Math.max(-1, Math.min(1, a.x*b.x + a.y*b.y + a.z*b.z));
+  const omega = Math.acos(dot);
+  if (omega < 1e-4) return;
+  const sinOm = Math.sin(omega);
+  const steps = 80;
+  const tClip = Math.min(t, 1);
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.globalAlpha = Math.max(0.15, 1 - Math.max(0, t - 1) * 2);
+  ctx.beginPath();
+  let started = false;
+  for (let i = 0; i <= Math.floor(steps * tClip); i++) {
+    const s = i / steps;
+    const w1 = Math.sin((1-s)*omega) / sinOm;
+    const w2 = Math.sin(s*omega) / sinOm;
+    const lift = 1 + Math.sin(s * Math.PI) * (0.08 + omega * 0.05);
+    const sp = { x: (a.x*w1 + b.x*w2) * lift, y: (a.y*w1 + b.y*w2) * lift, z: (a.z*w1 + b.z*w2) * lift };
+    const p = worldToCamera(sp, rot.rx, rot.ry);
+    if (p.z < -0.15) { if (started) { ctx.stroke(); ctx.beginPath(); started = false; } continue; }
+    const x = cx + p.x * R, y = cy - p.y * R;
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  if (tClip > 0 && tClip < 1) {
+    const s = tClip;
+    const w1 = Math.sin((1-s)*omega) / sinOm;
+    const w2 = Math.sin(s*omega) / sinOm;
+    const lift = 1 + Math.sin(s * Math.PI) * (0.08 + omega * 0.05);
+    const sp = { x: (a.x*w1 + b.x*w2) * lift, y: (a.y*w1 + b.y*w2) * lift, z: (a.z*w1 + b.z*w2) * lift };
+    const p = worldToCamera(sp, rot.rx, rot.ry);
+    if (p.z >= 0) {
+      const x = cx + p.x * R, y = cy - p.y * R;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, 16);
+      g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function render() {
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  ctx.clearRect(0, 0, cssW, cssH);
+  const cx = cssW / 2, cy = cssH / 2;
+  const R = Math.min(cx, cy) * 0.85 * state.zoom;
+  const rot = getRotation();
+
+  drawStars(cssW, cssH);
+  drawOcean(cx, cy, R, rot);
+  drawGrid(cx, cy, R, rot);
+  drawLand(cx, cy, R, rot);
+  drawBorders(cx, cy, R, rot);
+
+  for (let i = state.arcs.length - 1; i >= 0; i--) {
+    const arc = state.arcs[i];
+    drawArc(cx, cy, R, rot, arc.from, arc.to, arc.t, arc.color);
+    arc.t += 0.022;
+    if (arc.t > 2.0) state.arcs.splice(i, 1);
+  }
+  for (let i = state.pulses.length - 1; i >= 0; i--) {
+    const pu = state.pulses[i];
+    const pos = COUNTRY_POS[pu.country];
+    if (pos) drawPulse(cx, cy, R, rot, pos[0], pos[1], pu.t, pu.color);
+    pu.t += 0.018;
+    if (pu.t > 1.3) state.pulses.splice(i, 1);
+  }
+
+  const activeName = state.game && state.players[state.game.currentIdx]
+    ? state.players[state.game.currentIdx].name : null;
+  for (const player of state.players) {
+    const pos = COUNTRY_POS[player.name];
+    if (!pos) continue;
+    const country = state.world && state.world[player.name];
+    const fav = country ? country.favour : undefined;
+    const dime = country ? country.dime : null;
+    drawCountryMarker(cx, cy, R, rot, player.name, pos[0], pos[1], player.color,
+      player.name === activeName, player.name === state.selected, fav, dime);
+  }
+
+  for (const country in state.dimeFlashes) {
+    const fs = state.dimeFlashes[country];
+    for (const k in fs) {
+      fs[k].t += 0.012;
+      if (fs[k].t >= 1) delete fs[k];
+    }
+    if (Object.keys(fs).length === 0) delete state.dimeFlashes[country];
+  }
+
+  // Readouts
+  const ryDeg = ((state.rotY + state.userRotY) * 180 / Math.PI) % 360;
+  const rxDeg = (state.userRotX * 180 / Math.PI);
+  // Camera looks at lat = userRotX (rx is around X-axis, brings lat into view),
+  // lon = -userRotY (ry around Y-axis is opposite of geographic east).
+  document.getElementById('cam-readout').textContent =
+    'Lat ' + rxDeg.toFixed(0) + '° · Lon ' + (-ryDeg).toFixed(0) + '°';
+  const sp = subsolarPoint(new Date());
+  document.getElementById('sun-pos').innerHTML =
+    '<b>SUN</b><br>' + sp.lat.toFixed(1) + '°N · ' + ((sp.lon+540) % 360 - 180).toFixed(1) + '°E';
+
+  if (state.autoRotate && !state.isDragging) state.rotY += 0.0011;
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+// ================================================================
+// INTERACTION
+// ================================================================
+const boxEl = document.getElementById('globe-box');
+boxEl.addEventListener('mousedown', e => {
+  state.isDragging = true; state.autoRotate = false;
+  state.dragStartX = e.clientX; state.dragStartY = e.clientY;
+  state.dragStartRotY = state.userRotY; state.dragStartRotX = state.userRotX;
+  state.dragMoved = false;
+  boxEl.classList.add('dragging');
+});
+window.addEventListener('mousemove', e => {
+  if (!state.isDragging) return;
+  const dx = e.clientX - state.dragStartX;
+  const dy = e.clientY - state.dragStartY;
+  if (Math.abs(dx) + Math.abs(dy) > 4) state.dragMoved = true;
+  state.userRotY = state.dragStartRotY + dx * 0.005;
+  state.userRotX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, state.dragStartRotX + dy * 0.005));
+});
+window.addEventListener('mouseup', e => {
+  if (!state.isDragging) return;
+  state.isDragging = false;
+  boxEl.classList.remove('dragging');
+  setTimeout(() => { state.autoRotate = true; }, 4000);
+  if (!state.dragMoved) {
+    const rect = boxEl.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    let hit = null, bestD = 22;
+    for (const name in state.markerScreenPos) {
+      const pos = state.markerScreenPos[name];
+      if (pos.z < 0) continue;
+      const d = Math.hypot(pos.x - cx, pos.y - cy);
+      if (d < bestD) { bestD = d; hit = name; }
+    }
+    if (hit) selectCountry(hit);
+    else { state.selected = null; renderInspector(); renderPlayerList(); }
+  }
+});
+boxEl.addEventListener('wheel', e => {
+  e.preventDefault();
+  state.zoom = Math.max(0.6, Math.min(2.2, state.zoom - e.deltaY * 0.001));
+}, { passive: false });
+
+// Touch
+boxEl.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0];
+  state.isDragging = true; state.autoRotate = false;
+  state.dragStartX = t.clientX; state.dragStartY = t.clientY;
+  state.dragStartRotY = state.userRotY; state.dragStartRotX = state.userRotX;
+});
+boxEl.addEventListener('touchmove', e => {
+  if (!state.isDragging || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  state.userRotY = state.dragStartRotY + (t.clientX - state.dragStartX) * 0.005;
+  state.userRotX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, state.dragStartRotX + (t.clientY - state.dragStartY) * 0.005));
+  e.preventDefault();
+}, { passive: false });
+boxEl.addEventListener('touchend', () => {
+  if (state.isDragging) { state.isDragging = false; setTimeout(() => { state.autoRotate = true; }, 4000); }
+});
+
+// ================================================================
+// SELECTION + INSPECTOR + RAIL
+// ================================================================
+function selectCountry(name) {
+  state.selected = name;
+  renderInspector(); renderPlayerList();
+  if (name && COUNTRY_POS[name]) autoPan(COUNTRY_POS[name][0], COUNTRY_POS[name][1]);
+}
+
+function renderInspector() {
+  const ins = document.getElementById('inspector');
+  const name = state.selected || (state.game && state.players[state.game.currentIdx]?.name);
+  if (!name || !state.world || !state.world[name]) { ins.classList.remove('visible'); return; }
+  ins.classList.add('visible');
+  const c = state.world[name];
+  document.getElementById('ins-name').textContent = name;
+  const prev = state.worldPrev && state.worldPrev[name];
+  const set = (id, val, prevVal, color) => {
+    const el = document.getElementById(id);
+    const v = typeof val === 'number' ? val : parseFloat(val);
+    el.textContent = isNaN(v) ? '—' : Math.round(v);
+    el.style.color = color;
+    if (prev && typeof prevVal === 'number' && Math.abs(v - prevVal) >= 0.1) {
+      const delta = v - prevVal;
+      el.innerHTML = `${Math.round(v)} <span class="ins-delta ${delta < 0 ? 'neg' : ''}">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</span>`;
+    }
+  };
+  const d = c.dime || {};
+  const pd = prev ? (prev.dime || {}) : {};
+  set('ins-d', d.D || 0, pd.D, DIME_COLORS.D);
+  set('ins-i', d.I || 0, pd.I, DIME_COLORS.I);
+  set('ins-m', d.M || 0, pd.M, DIME_COLORS.M);
+  set('ins-e', d.E || 0, pd.E, DIME_COLORS.E);
+  const parts = [];
+  if (typeof c.gdp === 'number') parts.push(`<b>GDP</b> ${c.gdp.toFixed(0)}`);
+  if (c.stockpiles) {
+    const sv = Object.values(c.stockpiles).reduce((a,b)=>a+b,0) / Math.max(1, Object.keys(c.stockpiles).length);
+    parts.push(`<b>STOCK</b> ${sv.toFixed(0)}`);
+  }
+  if (typeof c.morale === 'number') parts.push(`<b>MORALE</b> ${c.morale.toFixed(0)}`);
+  if (typeof c.favour === 'number') parts.push(`<b>FAV</b> ${c.favour.toFixed(0)}`);
+  document.getElementById('ins-meta').innerHTML = parts.join(' · ');
+}
+
+function renderPlayerList() {
+  const el = document.getElementById('player-list');
+  if (!state.players.length) {
+    el.innerHTML = '<em style="color:var(--text3); font-size:11px;">No active players</em>';
+    return;
+  }
+  const activeIdx = state.game ? state.game.currentIdx : -1;
+  el.innerHTML = state.players.map((p, i) => {
+    const c = state.world && state.world[p.name];
+    const d = (c && c.dime) || {};
+    const prev = state.worldPrev && state.worldPrev[p.name];
+    const pd = (prev && prev.dime) || {};
+    const fav = c && typeof c.favour === 'number' ? c.favour.toFixed(0) : '—';
+    const cls = [
+      i === activeIdx ? 'active' : '',
+      p.name === state.selected ? 'selected' : '',
+    ].join(' ');
+    const bar = (key) => {
+      const v = Math.max(0, Math.min(DIME_MAX, d[key] != null ? d[key] : 0));
+      const pv = pd[key];
+      let delta = '';
+      if (typeof pv === 'number' && Math.abs(v - pv) >= 0.5) {
+        delta = v > pv ? 'delta-up' : 'delta-dn';
+      }
+      const w = (v / DIME_MAX * 100).toFixed(0);
+      return `<div class="pdc ${delta}" title="${key}=${v.toFixed(1)}"><div class="fill" style="width:${w}%; background:${DIME_COLORS[key]}"></div></div>`;
+    };
+    return `<div class="player-card ${cls}" data-country="${p.name}">
+      <div class="pc-head">
+        <div class="pc-name"><span class="pc-dot" style="background:${p.color}"></span>${p.name}</div>
+        <div class="pc-fav">${fav}</div>
+      </div>
+      <div class="pc-dime">${bar('D')}${bar('I')}${bar('M')}${bar('E')}</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.player-card').forEach(card => {
+    card.addEventListener('click', () => selectCountry(card.dataset.country));
+  });
+}
+
+function renderEventList() {
+  const el = document.getElementById('event-list');
+  if (!state.events.length) {
+    el.innerHTML = '<em style="color:var(--text3); font-size:11px;">Waiting for action…</em>';
+    return;
+  }
+  el.innerHTML = state.events.slice(-8).reverse().map(ev => {
+    let dimeChips = '';
+    if (ev.dimeDeltas) {
+      const chips = DIME_ORDER.map(k => {
+        const v = ev.dimeDeltas[k];
+        if (!v || Math.abs(v) < 0.5) return '';
+        const sign = v > 0 ? '+' : '';
+        const bg = DIME_COLORS[k] + '33';
+        return `<span class="chip" style="background:${bg}; color:${DIME_COLORS[k]}">${k} ${sign}${v.toFixed(1)}</span>`;
+      }).filter(Boolean).join('');
+      if (chips) dimeChips = `<div class="ev-dime">${chips}</div>`;
+    }
+    return `<div class="event ${ev.outcome || ''}">
+      <div class="ev-head"><span>${ev.player || ''} → ${ev.target || '—'}</span><span class="ev-turn">T${ev.turn || '-'}</span></div>
+      <div class="ev-body">${ev.text || ''}</div>
+      ${dimeChips}
+    </div>`;
+  }).join('');
+}
+
+function renderCommodities() {
+  const el = document.getElementById('commodities');
+  el.innerHTML = state.commodities.map(c => {
+    const cls = c.dt > 0.05 ? 'up' : c.dt < -0.05 ? 'dn' : 'flat';
+    const arrow = c.dt > 0.05 ? '▲' : c.dt < -0.05 ? '▼' : '·';
+    return `<div class="commodity">
+      <span class="nm">${c.nm}</span>
+      <span class="px">${c.px.toFixed(2)}</span>
+      <span class="dt ${cls}">${arrow} ${Math.abs(c.dt).toFixed(2)}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderHeaderStats() {
+  const risk = state.globalRisk != null ? Math.round(state.globalRisk) : (state.events.length * 3);
+  document.getElementById('stat-risk').textContent = risk + '%';
+  const tempo = state.events.length ? Math.min(100, state.events.length * 10) + '%' : '—';
+  document.getElementById('stat-tempo').textContent = tempo;
+  document.getElementById('stat-turn').textContent = state.game ? `${state.game.turn || 1}/${state.game.totalTurns || 5}` : '—';
+}
+function renderBanner() {
+  const be = document.getElementById('banner-event');
+  const bp = document.getElementById('banner-player');
+  if (state.game && state.players.length) {
+    const p = state.players[state.game.currentIdx] || state.players[0];
+    bp.innerHTML = `<span class="dot" style="background:${p.color}"></span><span>${p.name}</span>`;
+    const last = state.events[state.events.length-1];
+    be.textContent = last ? `Last: ${last.player} → ${last.target || '—'} [${(last.outcome||'').toUpperCase()}]` : 'Awaiting move…';
+  } else {
+    bp.innerHTML = `<span class="dot" style="background:#2563EB"></span><span>Awaiting player</span>`;
+    be.textContent = 'Waiting for game to start…';
+  }
+}
+
+function renderAll() {
+  renderPlayerList(); renderEventList(); renderCommodities();
+  renderHeaderStats(); renderBanner(); renderInspector();
+}
+renderCommodities();
+
+// ================================================================
+// WORLD NORMALIZATION — engine sends {countries, market, globalRisk}
+// Flatten into {countryName: {...}} for draw code.
+// ================================================================
+function normalizeWorld(raw) {
+  if (!raw) return null;
+  if (raw.countries) {
+    const out = {};
+    for (const name in raw.countries) {
+      const src = raw.countries[name];
+      const fav = src.favour != null ? src.favour
+        : (src.dime
+          ? 0.5 * ((src.dime.D + src.dime.I + src.dime.M + src.dime.E) / 4)
+            + 0.25 * (src.gdp || 0)
+            + 0.15 * ((src.stockpiles ? (src.stockpiles.rareEarths + src.stockpiles.semiconductors + src.stockpiles.energy + src.stockpiles.grain) / 4 : 0))
+            + 0.10 * (src.morale || 0)
+          : 0);
+      out[name] = Object.assign({}, src, { favour: fav });
+    }
+    return out;
+  }
+  return raw;
+}
+
+function syncCommodities(raw) {
+  if (!raw || !raw.market) return;
+  for (const c of state.commodities) {
+    const m = raw.market[c.key];
+    if (!m) continue;
+    const prev = c.px;
+    c.px = m.price;
+    c.dt = m.price - (m.prev != null ? m.prev : prev);
+  }
+}
+
+// ================================================================
+// DIME DELTA DETECTION
+// ================================================================
+function computeAndFlashDeltas(oldWorld, newWorld) {
+  if (!oldWorld || !newWorld) return {};
+  const perCountry = {};
+  for (const country in newWorld) {
+    const n = newWorld[country];
+    const o = oldWorld[country];
+    if (!o || !n.dime || !o.dime) continue;
+    for (const k of DIME_ORDER) {
+      const d = (n.dime[k] || 0) - (o.dime[k] || 0);
+      if (Math.abs(d) >= 0.3) {
+        if (!state.dimeFlashes[country]) state.dimeFlashes[country] = {};
+        state.dimeFlashes[country][k] = { t: 0, dir: d > 0 ? 1 : -1, mag: Math.abs(d) };
+        if (!perCountry[country]) perCountry[country] = {};
+        perCountry[country][k] = d;
+      }
+    }
+  }
+  return perCountry;
+}
+
+// ================================================================
+// STATE INGEST (from engine → parent → this popup)
+// ================================================================
+function ingestState(payload) {
+  if (!payload) return;
+
+  if (payload.world) {
+    const flat = normalizeWorld(payload.world);
+    state.worldPrev = state.world ? JSON.parse(JSON.stringify(state.world)) : null;
+    const deltas = computeAndFlashDeltas(state.worldPrev, flat);
+    state.world = flat;
+    state.globalRisk = payload.world.globalRisk;
+    window._latestDeltas = deltas;
+    syncCommodities(payload.world);
+  }
+
+  if (payload.game && payload.game.players) {
+    state.players = payload.game.players.map((p, i) => ({
+      name: p.country || p.name || p,
+      color: p.color || PLAYER_COLORS[i % PLAYER_COLORS.length],
+    }));
+    state.game = {
+      currentIdx: payload.game.currentIdx || 0,
+      turn: payload.game.turn || 1,
+      totalTurns: payload.game.totalTurns || 5,
+      log: payload.game.log || [],
+    };
+  }
+
+  // Event payload carries attacker/target/outcome/dimeDeltas
+  if (payload.event) {
+    const e = payload.event;
+    const attacker = e.attacker || e.actor;
+    const target   = e.target;
+    const outcome  = (e.outcome || '').toLowerCase();
+
+    const ev = {
+      player: attacker,
+      target: target,
+      turn: (state.game && state.game.turn) || 0,
+      outcome: outcome,
+      cardId:    e.cardId || null,
+      cardTitle: e.cardTitle || null,
+      summary:   e.summary  || null,
+      text: e.cardTitle ? `${e.cardTitle} (${e.cardId || ''}) — ${(e.outcome || '').toUpperCase()}` : (e.summary || ''),
+      dimeDeltas: e.dimeDeltas || (window._latestDeltas && attacker ? window._latestDeltas[attacker] : null),
+    };
+    // Dedup last log entry
+    const last = state.events[state.events.length - 1];
+    if (!last || last.turn !== ev.turn || last.player !== ev.player || last.text !== ev.text) {
+      state.events.push(ev);
+      const playerObj = state.players.find(p => p.name === attacker);
+      const color = playerObj ? playerObj.color : '#2563EB';
+      const attackColor =
+        outcome === 'backfire' ? '#db2777'
+        : outcome === 'best'   ? '#16a34a'
+        : color;
+      if (attacker) state.pulses.push({ country: attacker, t: 0, color: color });
+      if (attacker && target && COUNTRY_POS[attacker] && COUNTRY_POS[target] && attacker !== target) {
+        state.arcs.push({
+          from: COUNTRY_POS[attacker],
+          to: COUNTRY_POS[target],
+          t: 0, color: attackColor,
+        });
+      }
+      if (target && target !== attacker) {
+        setTimeout(() => { state.pulses.push({ country: target, t: 0, color: '#dc2626' }); }, 900);
+      }
+      if (attacker && COUNTRY_POS[attacker]) autoPan(COUNTRY_POS[attacker][0], COUNTRY_POS[attacker][1]);
+    }
+  }
+
+  renderAll();
+}
+
+function autoPan(lat, lon) {
+  const targetRotY = -lon * Math.PI / 180;
+  const targetRotX = lat * Math.PI / 180;
+  const startY = state.userRotY, startX = state.userRotX;
+  const currentRy = state.rotY + startY;
+  let deltaY = targetRotY - currentRy;
+  while (deltaY > Math.PI) deltaY -= Math.PI*2;
+  while (deltaY < -Math.PI) deltaY += Math.PI*2;
+  const deltaX = targetRotX - startX;
+  const duration = 900;
+  const t0 = performance.now();
+  state.autoRotate = false;
+  function step(t) {
+    const k = Math.min(1, (t - t0) / duration);
+    const e = 1 - Math.pow(1 - k, 3);
+    state.userRotY = startY + deltaY * e;
+    state.userRotX = startX + deltaX * e;
+    if (k < 1) requestAnimationFrame(step);
+    else setTimeout(() => { state.autoRotate = true; }, 4000);
+  }
+  requestAnimationFrame(step);
+}
+
+window.addEventListener('message', function(e) {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.type === 'wargame-state') {
+    ingestState(d.payload);
+    _readyConfirmed = true;  // stop pinging opener once we get real state
+  }
+});
+
+// Announce readiness to opener AND repeatedly until we receive actual state.
+// Why: the opener (engine.html) may not have bound its message handler at
+// the moment the globe finishes loading, so a single announce can be lost.
+// Retry briefly.
+let _readyConfirmed = false;
+function announceReady() {
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: 'wargame-globe-ready' }, '*');
+    }
+    // Also bubble up via parent for the odd case the globe is hosted inside
+    // an iframe rather than a popup.
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'wargame-globe-ready' }, '*');
+    }
+  } catch (e) {}
+}
+announceReady();
+window.addEventListener('load', announceReady);
+// Retry-poll ready signal so the opener hears us even if it bound late.
+let _readyTries = 0;
+const _readyTimer = setInterval(() => {
+  if (_readyConfirmed || _readyTries++ > 20) { clearInterval(_readyTimer); return; }
+  announceReady();
+}, 400);
+
+// ================================================================
+// SOCIAL PULSE  —  fake X-style feed reacting to each card play.
+// Deterministic per cardId+turn so reactions are reproducible. Drops
+// 2-4 posts per event, drawn from a persona pool keyed to the card's
+// DIME domain and outcome.
+// ================================================================
+state.tweets = [];
+state.activeRail = 'feed';
+
+/* === CARD_TOPICS + topic-aware tweets (auto-generated) === */
+/* Auto-generated topic phrases — one per action card. */
+const CARD_TOPICS = {
+  'COM-D-01': 'Strategic partnership upgrade',
+  'COM-D-02': 'Quad tech council',
+  'COM-D-03': 'One China campaign',
+  'COM-D-04': 'Pacific islands forum capture',
+  'COM-D-11': 'Abraham accords plus expansion',
+  'COM-D-12': 'Turkey NATO strategic realignment',
+  'COM-D-13': 'AFCFTA single currency pilot',
+  'COM-D-14': 'EU Africa global gateway doubling',
+  'COM-D-15': 'India quad plus outreach',
+  'COM-D-16': 'SCO reform push by Kazakhstan',
+  'COM-D-17': 'EU strategic compass 2030 refresh',
+  'COM-D-18': 'Ukraine NATO membership pathway activation',
+  'COM-E-01': 'IPEF supply chain',
+  'COM-E-02': 'Rare earth price war',
+  'COM-E-03': 'Chips fabrication alliance',
+  'COM-E-04': 'BRI digital silk road',
+  'COM-E-11': 'UAE India comprehensive economic partnership deepening',
+  'COM-E-12': 'Nigeria local content refining push',
+  'COM-E-13': 'DRC cobalt refining sovereignty',
+  'COM-E-14': 'China Africa RMB settlement push',
+  'COM-E-15': 'Bangladesh ready made garment sovereignty',
+  'COM-E-16': 'Kazakhstan rare earths west pivot',
+  'COM-E-17': 'Norway sovereign wealth fund energy transition tilt',
+  'COM-E-18': 'Netherlands ASML export control tightening',
+  'COM-I-01': 'Dragonbridge network',
+  'COM-I-02': 'OSINT maritime fusion',
+  'COM-I-03': 'Pacific connect cable',
+  'COM-I-04': 'Confucius plus network',
+  'COM-I-11': 'Al jazeera soft power surge',
+  'COM-I-12': 'Saudi vision 2030 counter media push',
+  'COM-I-13': 'Smart Africa digital sovereignty stack',
+  'COM-I-14': 'Wagner successor disinformation network',
+  'COM-I-15': 'India stack goes global',
+  'COM-I-16': 'EU AI act enforcement activation',
+  'COM-I-17': 'Russian Doppelgänger disinformation operation',
+  'COM-I-18': 'EU digital services act election surge',
+  'COM-M-01': 'FONOP surge',
+  'COM-M-02': 'SCS feature militarization',
+  'COM-M-03': 'SRF west enhancement',
+  'COM-M-04': 'DPRK ICBM testing',
+  'COM-M-11': 'Israel iron beam operationalization',
+  'COM-M-12': 'Morocco Akıncı and Skydio drone modernization',
+  'COM-M-13': 'Pakistan naval modernization with chinese type 054a p',
+  'COM-M-14': 'Poland eastern shield network completion',
+  'CON-D-01': 'Malacca neutrality',
+  'CON-D-02': 'Article iv MDT',
+  'CON-D-03': 'Strategic autonomy veto',
+  'CON-D-04': 'Five eyes blackout',
+  'CON-D-05': 'Arctic stewardship',
+  'CON-D-06': 'Common heritage veto',
+  'CON-D-07': 'Legislative diplomacy',
+  'CON-D-08': 'Carrier diplomacy HighMast',
+  'CON-D-09': 'Pacific reset surge',
+  'CON-D-10': 'Triple anchor summit',
+  'CON-D-11': 'Egypt Saudi Red Sea security charter',
+  'CON-D-12': 'ECOWAS Sahel re engagement framework',
+  'CON-D-13': 'Pakistan China strategic lock in',
+  'CON-D-14': 'India western flank diplomatic surge',
+  'CON-D-15': 'Hungary article 7 trigger and EU funds suspension',
+  'CON-D-16': 'EU Russia frozen asset seizure PLAN',
+  'CON-E-01': 'Rare earth export control',
+  'CON-E-02': 'Malacca toll inspection',
+  'CON-E-03': 'SWIFT exclusion dollar freeze',
+  'CON-E-04': 'Critical minerals sovereign fund',
+  'CON-E-05': 'NSR strategic monopoly',
+  'CON-E-06': 'Digital yuan ASEAN nexus',
+  'CON-E-07': 'BRI debt for security swap',
+  'CON-E-08': 'Seabed mineral harvest',
+  'CON-E-09': 'Silicon shield trigger',
+  'CON-E-10': 'Canada critical minerals stockpile',
+  'CON-E-11': 'Saudi led OPEC strategic cut',
+  'CON-E-12': 'UAE sovereign critical minerals stockpile',
+  'CON-E-13': 'South Africa BRICS strategic reserves move',
+  'CON-E-14': 'Sri Lanka hambantota lease renegotiation',
+  'CON-E-15': 'Treasury extraterritorial SWIFT enforcement',
+  'CON-E-16': 'Germany energy pivot to Norway and Qatar',
+  'CON-E-17': 'EU strategic industrial reshoring fund',
+  'CON-I-01': 'System destruction strike',
+  'CON-I-02': 'Shadow anchor',
+  'CON-I-03': 'Nuclear cognitive fear axis',
+  'CON-I-04': 'Lazarus SWIFT heist',
+  'CON-I-05': 'Borealis cyber shield',
+  'CON-I-06': 'Intelligentized influence Taiwan',
+  'CON-I-07': 'Undersea cable delousing',
+  'CON-I-08': 'Five eyes data breach',
+  'CON-I-09': 'Naming shaming satellite',
+  'CON-I-10': 'Strategic truth commission',
+  'CON-I-11': 'Iranian cyber pre positioning in Gulf energy',
+  'CON-I-12': 'GCC collective cyber defense compact',
+  'CON-I-13': 'Election deepfake operation against Kenya',
+  'CON-I-14': 'Pakistani ISI cyber operation in India',
+  'CON-I-15': 'India counter cyber doctrine activation',
+  'CON-I-16': 'Ukraine cyber hunt forward operations',
+  'CON-I-17': 'Russian FSB counter intelligence sweep',
+  'CON-M-01': 'Kill chain activation',
+  'CON-M-02': 'Okhotsk bastion lockdown',
+  'CON-M-03': 'AUKUS autonomous swarm',
+  'CON-M-04': 'Decapitation strike KMPR',
+  'CON-M-05': 'Active denial first island chain',
+  'CON-M-06': 'Malacca chokepoint reach',
+  'CON-M-07': 'Intelligentized carrier strike',
+  'CON-M-08': 'Three Gorges deterrent',
+  'CON-M-09': 'Tactical nuclear EMP',
+  'CON-M-10': 'ASW Mogami modernization',
+  'CON-M-11': 'Israel strike on iranian nuclear sites',
+  'CON-M-12': 'Iran proxy maritime swarm',
+  'CON-M-13': 'Algeria russian su 57 acquisition',
+  'CON-M-14': 'Ethiopia eritrea renewed border crisis',
+  'CON-M-15': 'India Pakistan limited air war',
+  'CON-M-16': 'India andaman nicobar theater command activation',
+  'CON-M-17': 'Russia black Sea fleet reconstitution strike',
+  'CON-M-18': 'Russian oreshnik irbm strike on Ukraine',
+  'CRI-D-01': 'Emergency UN Security Council session',
+  'CRI-D-02': 'Final warning diplomatic note',
+  'CRI-D-03': 'Allied emergency summit',
+  'CRI-D-04': 'Nonaligned crisis mediation',
+  'CRI-D-11': 'Iran npt withdrawal',
+  'CRI-D-12': 'Oman backchannel crisis mediation',
+  'CRI-D-13': 'African union crisis mediation surge',
+  'CRI-D-14': 'Kashmir crisis p5 mediation',
+  'CRI-D-15': 'Trans atlantic crisis coordination summit',
+  'CRI-E-01': 'Strategic petroleum release',
+  'CRI-E-02': 'Financial stability emergency',
+  'CRI-E-03': 'Export license suspension',
+  'CRI-E-04': 'Yuan defense intervention',
+  'CRI-E-11': 'Coordinated spr release plus Iran sanctions waiver',
+  'CRI-E-12': 'DRC cobalt export embargo',
+  'CRI-E-13': 'Sri Lanka imf plus bailout package',
+  'CRI-E-14': 'Russia energy counter sanctions package',
+  'CRI-I-01': 'Cyber prepositioning',
+  'CRI-I-02': 'EAS spoofing',
+  'CRI-I-03': 'Strategic comms blackout',
+  'CRI-I-04': 'Leadership deepfake broadcast',
+  'CRI-I-11': 'Hezbollah cognitive warfare surge',
+  'CRI-I-12': 'Continental internet outage from cable severance',
+  'CRI-I-13': 'India strategic communication surge',
+  'CRI-I-14': 'Coordinated submarine cable severance across the North',
+  'CRI-M-01': 'Partial mobilization',
+  'CRI-M-02': 'Carrier forward deployment',
+  'CRI-M-03': 'Taiwan strait median violation',
+  'CRI-M-04': 'PLAN amphibious exercise',
+  'CRI-M-11': 'Strait of hormuz closure',
+  'CRI-M-12': 'US fifth fleet sanitize operation',
+  'CRI-M-13': 'Sahel coup cascade',
+  'CRI-M-14': 'Pakistan tactical nuclear threshold demonstration',
+  'CRI-M-15': 'Russian oreshnik crater on polish soil',
+  'CRI-M-16': 'Belarus hybrid border surge',
+};
+
+const TOPIC_TEMPLATES = {
+  "M": {
+    "BEST": [
+      "BREAKING: {actor} executes {topic} with surgical precision. {target} reads the message and goes quiet. {hash}",
+      "Doctrinal win for {actor}: {topic} lands clean. Pentagon analysts already drafting the case study. {hash}",
+      "If you weren't tracking {topic}, you missed the inflection. {actor} just rewrote the regional calculus on {target}. {hash}"
+    ],
+    "PARTIAL": [
+      "{actor}'s {topic} achieved tactical effect, but the political signal landed muddled. {target} has room. {hash}",
+      "Mixed reviews for {topic}. The kinetic side worked; the messaging frayed at the seams. {hash}",
+      "{topic} was meant to deter — got coverage, not consequence. {actor} regroups. {hash}"
+    ],
+    "BACKFIRE": [
+      "{actor}'s {topic} is the strategic own-goal of the quarter. {target} now operates with cover. {hash}",
+      "{topic}: planned for deterrence, delivered escalation. The retrospective will be brutal. {hash}",
+      "Whoever signed off on {topic} should be reading want ads tomorrow. {actor} loses initiative. {hash}"
+    ]
+  },
+  "D": {
+    "BEST": [
+      "BREAKING: {actor} lands {topic}. Capitals briefed within the hour, {target} now hedging in public. {hash}",
+      "{topic} arrives with substance, not just choreography. {actor} pockets the diplomatic win. {hash}",
+      "Watching {topic} ripple through allied chats: this isn't a one-off, it's a posture shift. {hash}"
+    ],
+    "PARTIAL": [
+      "{topic} got a lukewarm room. {actor} signals harder than the substance can carry — {target} senses it. {hash}",
+      "Half-credit on {topic}. The communique reads stronger than the actual commitments. {hash}",
+      "If you're parsing {topic} for ironclad guarantees, you'll be disappointed. {actor} bought time, not deliverables. {hash}"
+    ],
+    "BACKFIRE": [
+      "{actor}'s {topic} fell flat in {target}. The room counted noses; the noses weren't there. {hash}",
+      "Reading the leak on {topic}: this was supposed to bind {target}. It freed them. {hash}",
+      "{topic}: a masterclass in how to lose a friend. {actor} burning capital they don't have. {hash}"
+    ]
+  },
+  "I": {
+    "BEST": [
+      "OSINT confirms {topic} hit attribution this morning. {actor} demonstrates real cross-domain coordination. {hash}",
+      "{topic} dropped — narrative dominance in {target}'s feeds visibly shifting. {hash}",
+      "Information ops note: {actor}'s {topic} ran for 18 hours before {target} could even rebut. {hash}"
+    ],
+    "PARTIAL": [
+      "{topic} got traction, but the counter-narrative stood up faster than expected. {target} adapts. {hash}",
+      "{actor}'s {topic} reached the audience; persuasion landed at maybe half. {hash}",
+      "Mixed signal in {topic} — virality was there, the fact-check was faster. {hash}"
+    ],
+    "BACKFIRE": [
+      "{actor}'s {topic} got dunked on by everyone with a press pass. Streisand-effect speedrun. {hash}",
+      "{topic} blew up in {actor}'s face: forensic attribution within 6 hours, on-record condemnations within 12. {hash}",
+      "Whoever greenlit {topic} forgot the internet has receipts. {target} won the day. {hash}"
+    ]
+  },
+  "E": {
+    "BEST": [
+      "Markets price in {topic} fast — {actor} captures the strategic premium. {target} exposure rerated overnight. {hash}",
+      "{topic} is the supply-chain pivot of the quarter. {actor} sets terms, {target} reacts. {hash}",
+      "The thesis on {topic} just printed. Allocators rotating into {actor}-aligned baskets. {hash}"
+    ],
+    "PARTIAL": [
+      "{topic} moved the screen, not the structural picture. {actor} gets a session, not the trend. {hash}",
+      "Half a leg up on {topic}. {target}'s hedges held; the dislocation will need a second push. {hash}",
+      "{topic} priced in within minutes — alpha decayed, the structural call still open. {hash}"
+    ],
+    "BACKFIRE": [
+      "{actor}'s {topic} just cratered the cross-asset thesis. {target} is the relative winner. {hash}",
+      "{topic} was supposed to weaponize the supply chain — instead it accelerated decoupling against {actor}. {hash}",
+      "Tape doesn't lie: {topic} cost {actor} more than it cost {target}. Repositioning underway. {hash}"
+    ]
+  }
+};
+const TOPIC_CITIZEN = {
+  "BEST": [
+    "ok {topic} is actually wild, where do we go from here",
+    "watching {topic} unfold and i don't even know how to feel anymore",
+    "lol {actor} pulled off {topic} like it was nothing 😶"
+  ],
+  "PARTIAL": [
+    "so {topic} happened. is that good? bad? gestures vaguely",
+    "the news is exhausting. {topic}. cool. cool cool cool.",
+    "watching {topic} and pretending i understand IR theory"
+  ],
+  "BACKFIRE": [
+    "{topic} was a SPECTACULAR idea {actor}. genius. 10/10.",
+    "imagine doing {topic} and somehow making things worse for yourself 😭",
+    "every day i log on and {topic} happens. this is why i can't have nice things."
+  ]
+};
+const TOPIC_MEME = {
+  "BEST": [
+    "{topic}: ✅ executed\\nplan B: didn't need it\\n{actor}: literally winning",
+    "live look at {target}'s situation room watching {topic} hit the wires:\\n📊📊📉",
+    "POV: you're {actor} and {topic} just cleared every checkpoint"
+  ],
+  "PARTIAL": [
+    "{topic} report card: B-, see me after class",
+    "when you plan {topic} for 18 months and the outcome is 'eh':\\n¯\\\\_(ツ)_/¯",
+    "{topic} truthers vs {topic} doomers, both wrong, news at 11"
+  ],
+  "BACKFIRE": [
+    "{topic} got the speedrun any% award for self-defeat",
+    "the only winning move with {topic} was not to play\\n{actor}: 'best of three?'",
+    "{topic} but it's a clip that ages 6 months in 6 hours"
+  ]
+};
+const TOPIC_MARKET = {
+  "BEST": [
+    "Tape on {topic}: + risk-on basket, - {target}-exposed names. Smart money rotated yesterday. {hash}",
+    "Cleared the screen on {topic} → equities up 1.2σ on the related book. {hash}",
+    "Buy-the-rumor, sell-the-news doesn't apply when {topic} delivers. {hash}"
+  ],
+  "PARTIAL": [
+    "{topic}: priced in inside 12 minutes. Edge gone, position trimmed. {hash}",
+    "Modest re-rate on {topic}. The structural thesis still wants more catalysts. {hash}",
+    "{topic} = noise unless next week's data confirms. Stay selective. {hash}"
+  ],
+  "BACKFIRE": [
+    "{topic} bid-asked in the wrong direction. Stops triggered, books hedging. {hash}",
+    "Cross-asset reads on {topic}: vol up, {actor}-baskets down, {target} catches a relief bid. {hash}",
+    "{topic} repriced overnight against {actor}. The desk's mood matches. {hash}"
+  ]
+};
+/* === END CARD_TOPICS block === */
+
+const PERSONAS = [
+  // verified analysts (blue check)
+  { handle: '@stratforwatch',  name: 'StratFor Watch',     avatar: 'SW', color: '#2563EB', kind: 'analyst', verified: 'blue' },
+  { handle: '@CFR_indo',       name: 'CFR · Indo-Pacific', avatar: 'CF', color: '#1e40af', kind: 'analyst', verified: 'blue' },
+  { handle: '@RAND_strategy',  name: 'RAND Strategy',      avatar: 'RD', color: '#7c3aed', kind: 'analyst', verified: 'blue' },
+  { handle: '@aspi_canberra',  name: 'ASPI',               avatar: 'AS', color: '#0891b2', kind: 'analyst', verified: 'blue' },
+  { handle: '@chathamhouse',   name: 'Chatham House',      avatar: 'CH', color: '#be185d', kind: 'analyst', verified: 'blue' },
+  // OSINT
+  { handle: '@aurora_intel',   name: 'Aurora Intel',       avatar: 'AI', color: '#16a34a', kind: 'osint',   verified: '' },
+  { handle: '@osint_tactical', name: 'OSINT Tactical',     avatar: 'OT', color: '#15803d', kind: 'osint',   verified: '' },
+  { handle: '@MTanchored',     name: 'MaritimeWatch',      avatar: 'MT', color: '#0e7490', kind: 'osint',   verified: '' },
+  { handle: '@PlaneAnomaly',   name: 'Plane Anomaly',      avatar: 'PA', color: '#a16207', kind: 'osint',   verified: '' },
+  // journalists
+  { handle: '@FT_asia',        name: 'FT Asia',            avatar: 'FT', color: '#db2777', kind: 'journo',  verified: 'blue' },
+  { handle: '@nikkei_eng',     name: 'Nikkei Asia',        avatar: 'NK', color: '#dc2626', kind: 'journo',  verified: 'blue' },
+  { handle: '@reuters_world',  name: 'Reuters World',      avatar: 'RW', color: '#f97316', kind: 'journo',  verified: 'blue' },
+  { handle: '@AJEnglish_',     name: 'Al Jazeera English', avatar: 'AJ', color: '#ca8a04', kind: 'journo',  verified: 'blue' },
+  // markets
+  { handle: '@zerohedge_',     name: 'zerohedge',          avatar: 'ZH', color: '#525252', kind: 'market',  verified: '' },
+  { handle: '@MacroAlf',       name: 'Alf · Macro',        avatar: 'MA', color: '#0d9488', kind: 'market',  verified: '' },
+  { handle: '@bbg_markets',    name: 'Bloomberg Markets',  avatar: 'BB', color: '#1d4ed8', kind: 'market',  verified: 'blue' },
+  // gov spox / state media
+  { handle: '@StateDept',      name: 'Dept of State',      avatar: 'SD', color: '#1e3a8a', kind: 'gov',     verified: 'gold' },
+  { handle: '@MFA_china',      name: 'MFA China',          avatar: 'MF', color: '#b91c1c', kind: 'gov',     verified: 'gold' },
+  { handle: '@RIA_novosti',    name: 'RIA Novosti',        avatar: 'RN', color: '#991b1b', kind: 'gov',     verified: 'gold' },
+  { handle: '@EU_Commission',  name: 'EU Commission',      avatar: 'EU', color: '#1e40af', kind: 'gov',     verified: 'gold' },
+  // citizens / sarcastic
+  { handle: '@hot_takes_only', name: 'hot takes',          avatar: 'HT', color: '#9333ea', kind: 'citizen', verified: '' },
+  { handle: '@noctambulist',   name: 'noct',               avatar: 'no', color: '#7e22ce', kind: 'citizen', verified: '' },
+  { handle: '@cope_and_seethe', name: 'cope.eth',          avatar: 'cs', color: '#7c3aed', kind: 'citizen', verified: '' },
+  { handle: '@NewWorldOrderPiL', name: 'just_asking_qs',   avatar: '??', color: '#737373', kind: 'citizen', verified: '' },
+  // meme accounts — chronically online war discourse
+  { handle: '@ww3_alpha_build', name: 'WW3 Alpha Build',   avatar: '🪖', color: '#1f2937', kind: 'meme',    verified: '' },
+  { handle: '@end_of_history_', name: 'fukuyama was wrong',avatar: 'EH', color: '#831843', kind: 'meme',    verified: '' },
+  { handle: '@nato_or_natnah',  name: 'NATO or natnah',    avatar: 'N?', color: '#1e3a8a', kind: 'meme',    verified: '' },
+  { handle: '@gen_z_diplomat',  name: 'gen z diplomat',    avatar: '🥱', color: '#6d28d9', kind: 'meme',    verified: '' },
+  { handle: '@war_room_gifs',   name: 'war room gifs',     avatar: 'WR', color: '#0f766e', kind: 'meme',    verified: '' },
+  { handle: '@doomscroll_',     name: 'doomscroller',      avatar: 'DS', color: '#1e293b', kind: 'meme',    verified: '' },
+  { handle: '@its_so_joever',   name: 'so joever',         avatar: 'JO', color: '#581c87', kind: 'meme',    verified: '' },
+  { handle: '@history_is_now',  name: 'unpacking history', avatar: '📰', color: '#374151', kind: 'meme',    verified: '' },
+  { handle: '@grim_chad_',      name: 'grim chad',         avatar: 'GC', color: '#3f3f46', kind: 'meme',    verified: '' },
+  { handle: '@touch_grass_geo', name: 'touch grass · geo', avatar: '🌱', color: '#166534', kind: 'meme',    verified: '' },
+  { handle: '@the_main_charact', name: 'main character',   avatar: 'MC', color: '#a21caf', kind: 'meme',    verified: '' },
+];
+
+// Templates by domain × outcome. Placeholders:
+//   {actor}  attacker country
+//   {target} target country
+//   {card}   card title (lowercased, shortened)
+//   {hash}   #hashtag derived from card
+//   {pct}    a fake percentage that ties to outcome severity
+const TEMPLATES = {
+  M: {  // Military
+    BEST: [
+      "BREAKING: {actor} executes {card} cleanly. {target} posture visibly degraded — analysts call this a serious shift in regional balance. {hash}",
+      "Multiple OSINT sources confirm {actor} just pulled off {card}. {target} response so far: silence. Watch the next 24h.",
+      "{actor} demonstrating force projection of the year. {target} retaliation calculus just got a lot harder.",
+      "If you don't think {actor}'s {card} was a deterrent message to {target}, you're not paying attention. {hash}",
+      "Pentagon reading group's reading list just got longer. {actor} {card} is going to be the case study of the decade.",
+    ],
+    PARTIAL: [
+      "{actor}'s {card} achieved tactical effect but coalition fracture obvious. Mixed signal day. {hash}",
+      "Half-measures rarely deter. {actor} learning that the hard way. {target} has wiggle room.",
+      "Mixed reviews on {card}. Some doctrine analysts impressed; others see hollow signaling. {hash}",
+    ],
+    BACKFIRE: [
+      "{actor}'s {card}: an absolute belly flop. {target} now emboldened. Strategic own-goal. {hash}",
+      "Imagine spending this much on force projection and getting THIS outcome. {actor} OPS team having a rough morning.",
+      "{actor} just gave {target} 18 months of free escalation cover with that disaster. {hash}",
+      "Doctrinal failure of the year nominee. {card}. Wow.",
+    ],
+  },
+  D: {  // Diplomatic
+    BEST: [
+      "{actor} lands {card} cleanly. {target} now has to choose between alignment or isolation. {hash}",
+      "Real diplomatic win for {actor}. The room reads as 70% with them, 30% hedging. Nice work by the negotiators.",
+      "{card} signed. Effective {actor} statecraft. Markets like this. {hash}",
+      "If the joint communiqué from {card} is real, this changes the {target} calculus materially.",
+    ],
+    PARTIAL: [
+      "{actor}'s {card} produced a watered-down communiqué. Translation: nobody got what they wanted but nobody walked. {hash}",
+      "Lots of talk, modest delivery. {card} is more press release than pivot. Wait for the binding annex.",
+    ],
+    BACKFIRE: [
+      "{actor}'s {card} backfired. {target} just got a free PR win out of it. {hash}",
+      "Embarrassing rollout for {actor}. {card} reads as desperation, not coordination.",
+      "Coalition fracture on full display. {card} is the diplomatic equivalent of a fumble at the goal line.",
+    ],
+  },
+  I: {  // Informational
+    BEST: [
+      "Whoever is running {actor}'s information ops earned their pay this quarter. {card} is shaping the {target} narrative in real time. {hash}",
+      "{actor}'s {card} is rewriting the social-media battlespace. Engagement up {pct}% across surveyed platforms.",
+      "{card} is now the dominant frame in three news cycles. {target} comms team will be playing catch-up for weeks.",
+      "Attribution is shaky but the pattern fits. {actor} {card}. {hash}",
+    ],
+    PARTIAL: [
+      "{actor}'s {card} got airtime but not traction. {target} counter-messaging ate half the lift. {hash}",
+      "Partial signal penetration. Bot detection caught about a third of {actor}'s push.",
+    ],
+    BACKFIRE: [
+      "{actor}'s {card} attribution fully exposed within 6 hours. Streisand effect kicking in hard. {hash}",
+      "Counter-OSINT just dismantled {actor}'s {card} narrative live on air. Disastrous own-goal.",
+      "When you try to disinfo and the platform's labels you in 30 minutes. {actor} did exactly that. {hash}",
+    ],
+  },
+  E: {  // Economic
+    BEST: [
+      "{actor}'s {card} just repriced the entire supply-chain risk premium. Watch {target}'s GDP this quarter. {hash}",
+      "Markets reading {actor}'s {card} as a structural shift, not a tactic. Index futures moving accordingly.",
+      "{card} is a textbook economic statecraft play. {actor} forced {target} to choose between a sector and a coalition.",
+      "Brent up {pct}%. Rare-earth basket up. {actor}'s {card} effective. {hash}",
+    ],
+    PARTIAL: [
+      "{actor}'s {card} priced in but not fully transmitted. {target} found a workaround inside 48h. {hash}",
+      "Mixed market reaction to {card}. The street isn't sure if this is a phase or a doctrine.",
+    ],
+    BACKFIRE: [
+      "{actor}'s {card} blew up. Their own exporters worse off than {target}'s importers. Self-sanctioning at scale. {hash}",
+      "Whoever modeled {actor}'s {card} forgot about the secondary effects. {target} laughing all the way to the bond market.",
+      "If you're long {actor} sovereigns this morning, you're having a bad time. {card} {hash}",
+    ],
+  },
+};
+
+// Citizen + market voices skip the actor/target detail and just react.
+const CITIZEN_TWEETS = {
+  BEST: [
+    "this is fine 🔥🐶☕",
+    "cooked", "we are SO back. {hash}",
+    "they actually did it",
+    "no notes. {hash}",
+    "history is happening today and i am simply scrolling",
+    "POV: you woke up and {actor} is the main character now",
+    "ok but the way {actor} just casually changed the world today",
+    "no thoughts head empty just {actor} doing {card}",
+    "{actor} woke up and chose VIOLENCE 💀⚔️",
+    "the audacity of {actor} (complimentary)",
+    "{actor} ate that. left no crumbs.",
+    "respectfully {actor} is BUILT different",
+    "we live in a society and {actor} is running it apparently",
+  ],
+  PARTIAL: [
+    "mid",
+    "tepid response from the elites as usual",
+    "nothingburger. {hash}",
+    "wake me when it matters",
+    "tale as old as time: bold press release, mediocre execution 🥱",
+    "ok but did anything actually happen tho",
+    "this slaps in theory only",
+    "girl what is this even",
+    "delulu is NOT the solulu apparently",
+    "side eye at the negotiators 👀",
+    "L attempt but not L. mid.",
+    "everybody clapping for the photo op like ✌️",
+  ],
+  BACKFIRE: [
+    "lmaooooo",
+    "couldn't be me",
+    "imagine. just imagine.",
+    "skill issue. {hash}",
+    "they fumbled the bag",
+    "absolute clown show 🤡🤡🤡",
+    "rip bozo 🪦",
+    "down catastrophic. like CATASTROPHIC catastrophic.",
+    "{actor} L + ratio + your country is mid",
+    "OWN GOAL of the century and we're only 5 years in",
+    "the way they fumbled this in REAL time",
+    "we are NOT laughing 💀 (we are laughing)",
+    "it's giving end of empire arc",
+    "{actor} caught LACKING in 4K",
+    "ohio rizz from {actor} fr",
+    "the lack of self-awareness is sending me",
+  ],
+};
+
+// Pure meme pool — chronically online Gen Z / Gen Alpha war discourse
+const MEME_TWEETS = {
+  BEST: [
+    "ww3 alpha build just dropped. patch notes WILD.",
+    "the world peace beta got patched out 💀",
+    "POV: you're {target} this morning 😭🫠",
+    "this is some final season writing. who's the showrunner.",
+    "{actor} just hit the geopolitics combo move and got the achievement",
+    "in this essay i will explain why {actor} is built different",
+    "no bc the lore on this is INSANE",
+    "history channel about to EAT this season",
+    "the timeline split when {actor} did {card}",
+    "{actor}: i'm gonna be unhinged today\nworld: oh no\n{actor}: {card}",
+    "manifesting world peace and getting THIS instead 💀",
+    "literal cinema. cinematic universe. marvel could never.",
+    "the way {actor} just main charactered the entire world",
+    "WW3 speedrun any% world record attempt incoming",
+    "we are SO over (we are SO back)",
+    "skibidi war alpha test concluded successfully",
+    "every {target} citizen this morning: 😀🫠😀🫠",
+  ],
+  PARTIAL: [
+    "ww3 dlc delayed AGAIN smh",
+    "peak nothingburger energy from {actor}",
+    "the tweet vs the policy 😭",
+    "{actor} ON WHAT? on nothing??",
+    "this is peak 'we have ww3 at home' behavior",
+    "literally just two press releases and a stern phone call. cinema.",
+    "tale as old as time: bold PR, mid follow-through",
+    "zoomers watching ww3 unfold like 🍿😴🍿",
+    "the lukewarm war 🥱",
+    "manifesting war crimes prosecutions, getting joint communiqués",
+    "we got cold war 2.0 at home: it was just a strongly worded letter",
+  ],
+  BACKFIRE: [
+    "{actor} fumbled WW3. astonishing.",
+    "this is so joever for {actor} 😭",
+    "POV: you cosplay as a great power and it doesn't work 🫠",
+    "{actor} OPS team this morning: 🤡🤡🤡",
+    "down BAD. down bad like end-of-empire bad.",
+    "the audacity. the lack of awareness. the L.",
+    "ratio + L + cope + {actor} fell off",
+    "{actor} discovered consequences (it didn't go well)",
+    "skibidi rizz failure from {actor} smh",
+    "imagine spending 4% of GDP and getting clowned 💀",
+    "history teachers in 2050 are going to LOVE teaching this one",
+    "{actor} really said 'hold my beer' and forgot the beer",
+    "this is going in the L textbook fr fr no cap",
+    "{target} W. pure {target} W. giga {target} W.",
+    "the way {actor} just speedran the L 🏃‍♀️💨",
+    "we have entered the embarrassment timeline",
+    "cope is a language and {actor} is fluent",
+    "{actor} after {card}: 'this is fine' 🔥🐶☕",
+    "watching {actor} backpedal in real time is wild",
+    "they fumbled it. unhinged behavior tbh",
+    "they're not letting {actor} cook because {actor} can't cook",
+  ],
+};
+
+const MARKET_TWEETS = {
+  BEST:    ["risk-on. {hash}", "spreads tightening. {actor} priced for follow-through.", "vol crushed. {hash}", "buy the rumor, buy the news. wow.", "{actor} 10y narrowing. flow follows the win.", "VIX taking a nap rn 💤"],
+  PARTIAL: ["neutral. {target} basis unchanged.", "no clear signal. {hash}", "fade the headline.", "the tape doesn't care. mid.", "macro shrugged."],
+  BACKFIRE:["risk-off. {actor} sovereigns wider 14bp. {hash}", "{actor} CDS spiking. {hash}", "vol bid. nobody saw this coming.", "every desk on the street is short {actor} this morning", "{actor} basis blown out. RIP positioning."],
+};
+
+// 2 simple deterministic helpers — no globals required for any of this.
+function _hash(s) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+function _seedSeq(seed) {
+  let x = seed >>> 0;
+  return () => { x = (x * 1664525 + 1013904223) >>> 0; return x; };
+}
+
+function _pickN(arr, rng, n) {
+  const a = arr.slice(); const out = [];
+  while (out.length < n && a.length) {
+    const i = rng() % a.length;
+    out.push(a.splice(i, 1)[0]);
+  }
+  return out;
+}
+
+function _shortCard(title) {
+  if (!title) return 'the play';
+  const t = String(title).replace(/[“”"']/g, '');
+  return t.length > 38 ? '"' + t.slice(0, 36).trim() + '…"' : '"' + t + '"';
+}
+function _hashTag(cardId, domain) {
+  if (!cardId) return '#geopolitics';
+  const tail = cardId.replace(/[^A-Z0-9]/gi, '');
+  const map = {D:'#diplomacy', I:'#osint', M:'#defense', E:'#markets'};
+  const base = map[domain] || '#geopolitics';
+  return base + ' #' + tail;
+}
+function _highlightText(text, outcome) {
+  // Light syntax-highlight for hashtags/mentions and outcome-coloured words.
+  return text
+    .replace(/(#[A-Za-z0-9_]+)/g, '<span class="hashtag">$1</span>')
+    .replace(/(@[A-Za-z0-9_]+)/g, '<span class="mention">$1</span>');
+}
+function _formatTime(ageSec) {
+  if (ageSec < 5) return 'now';
+  if (ageSec < 60) return ageSec + 's';
+  if (ageSec < 3600) return Math.floor(ageSec / 60) + 'm';
+  if (ageSec < 86400) return Math.floor(ageSec / 3600) + 'h';
+  return Math.floor(ageSec / 86400) + 'd';
+}
+function _engagement(rng, outcome) {
+  const burstMul = outcome === 'BEST' ? 2.4 : outcome === 'BACKFIRE' ? 3.2 : 1.0;
+  const base = (10 + (rng() % 800)) * burstMul;
+  const lk = Math.round(base);
+  const rt = Math.max(1, Math.round(lk * (0.18 + (rng() % 25) / 100)));
+  const rp = Math.max(1, Math.round(lk * (0.06 + (rng() % 14) / 100)));
+  const vw = Math.round(lk * (12 + (rng() % 38)));
+  const fmt = n => n >= 1_000_000 ? (n/1_000_000).toFixed(1) + 'M'
+                : n >= 1_000     ? (n/1_000).toFixed(1)     + 'K'
+                : String(n);
+  return { lk: fmt(lk), rt: fmt(rt), rp: fmt(rp), vw: fmt(vw) };
+}
+
+function generateTweetsForEvent(ev) {
+  if (!ev || !ev.cardId) return [];
+  const parts = String(ev.cardId).split('-');
+  const phase = parts[0] || 'COM';
+  const domain = parts[1] || 'D';
+  const outcomeRaw = (ev.outcome || 'PARTIAL').toUpperCase();
+  const outcome = ['BEST','PARTIAL','BACKFIRE'].includes(outcomeRaw) ? outcomeRaw : 'PARTIAL';
+
+  const rng = _seedSeq(_hash(ev.cardId + ':' + (ev.turn || 0) + ':' + (ev.player || '')));
+  const count = 4 + (rng() % 2);   // 4 or 5 posts per card (a few more to fit memes)
+
+  // Persona mix: at least one analyst/journo, sometimes gov, often a citizen
+  // ALWAYS at least one meme account (war memes are mandatory online),
+  // and sometimes a market voice. Pre-bias the pool by domain.
+  const domainBias = {
+    M: ['osint',  'analyst', 'meme',    'gov',    'journo',  'citizen'],
+    D: ['gov',    'analyst', 'meme',    'journo', 'citizen', 'analyst'],
+    I: ['osint',  'analyst', 'meme',    'journo', 'citizen', 'meme'],
+    E: ['market', 'journo',  'analyst', 'meme',   'citizen', 'gov'],
+  };
+  const wantedKinds = domainBias[domain] || domainBias.D;
+  const picked = [];
+  const usedHandles = new Set();
+  for (let i = 0; i < count; i++) {
+    const kind = wantedKinds[i % wantedKinds.length];
+    const pool = PERSONAS.filter(p => p.kind === kind && !usedHandles.has(p.handle));
+    const fallback = PERSONAS.filter(p => !usedHandles.has(p.handle));
+    const use = (pool.length ? pool : fallback);
+    if (!use.length) break;
+    const p = use[rng() % use.length];
+    picked.push(p);
+    usedHandles.add(p.handle);
+  }
+
+  const actor = ev.player || ev.attacker || 'Unknown';
+  const target = ev.target && ev.target !== actor ? ev.target : null;
+  const cardShort = _shortCard(ev.cardTitle || ev.text);
+  const hashtag = _hashTag(ev.cardId, domain);
+
+  const fillTokens = (str) => str
+    .replace(/\{topic\}/g,  (typeof CARD_TOPICS !== 'undefined' && CARD_TOPICS[ev.cardId]) || cardShort)
+    .replace(/\{actor\}/g,  actor)
+    .replace(/\{target\}/g, target || 'the region')
+    .replace(/\{card\}/g,   cardShort)
+    .replace(/\{hash\}/g,   hashtag)
+    .replace(/\{pct\}/g,    String(8 + (rng() % 47)));
+
+  const tweets = picked.map((p, i) => {
+    let body;
+    const hasTopic = (typeof CARD_TOPICS !== 'undefined') && CARD_TOPICS[ev.cardId];
+    function _mergePool(generic, topical) {
+      if (hasTopic && topical && topical.length) return generic.concat(topical);
+      return generic;
+    }
+    if (p.kind === 'meme') {
+      const generic = MEME_TWEETS[outcome] || MEME_TWEETS.PARTIAL;
+      const topical = (TOPIC_MEME[outcome] || []);
+      const pool = _mergePool(generic, topical);
+      body = pool[rng() % pool.length];
+    } else if (p.kind === 'citizen') {
+      const generic = CITIZEN_TWEETS[outcome] || CITIZEN_TWEETS.PARTIAL;
+      const topical = (TOPIC_CITIZEN[outcome] || []);
+      const pool = _mergePool(generic, topical);
+      body = pool[rng() % pool.length];
+    } else if (p.kind === 'market') {
+      const generic = MARKET_TWEETS[outcome] || MARKET_TWEETS.PARTIAL;
+      const topical = (TOPIC_MARKET[outcome] || []);
+      const pool = _mergePool(generic, topical);
+      body = pool[rng() % pool.length];
+    } else {
+      const generic = (TEMPLATES[domain] && TEMPLATES[domain][outcome]) || TEMPLATES.D.PARTIAL;
+      const topical = ((TOPIC_TEMPLATES[domain] && TOPIC_TEMPLATES[domain][outcome]) || []);
+      const pool = _mergePool(generic, topical);
+      body = pool[rng() % pool.length];
+    }
+    body = fillTokens(body);
+
+    const eng = _engagement(rng, outcome);
+    return {
+      id: ev.cardId + ':' + i,
+      cardId: ev.cardId,
+      cardTitle: ev.cardTitle,
+      outcome: outcomeRaw,
+      persona: p,
+      text: body,
+      eng: eng,
+      ts: Date.now(),
+      ageOffset: i * (3 + rng() % 12),  // stagger "X seconds ago"
+    };
+  });
+
+  return tweets;
+}
+
+function renderSocialFeed() {
+  const root = document.getElementById('social-feed');
+  if (!root) return;
+  if (!state.tweets.length) {
+    root.innerHTML = '<div class="pulse-empty">No posts yet — markets are quiet.</div>';
+    document.getElementById('rt-count-feed').textContent = '0';
+    return;
+  }
+  // Newest at the top, group consecutive tweets from same card with a tag
+  const out = [];
+  let lastCardId = null;
+  state.tweets.slice().reverse().forEach(t => {
+    if (t.cardId !== lastCardId) {
+      out.push(`<div class="pulse-card-tag">↻ <b>${escapeHtmlGlobe(t.cardId || '')}</b> · ${escapeHtmlGlobe((t.cardTitle || '').slice(0, 60))}</div>`);
+      lastCardId = t.cardId;
+    }
+    const ageSec = Math.max(0, Math.floor((Date.now() - t.ts) / 1000) + (t.ageOffset || 0));
+    const time = _formatTime(ageSec);
+    const verifyHtml = t.persona.verified === 'gold' ? '<span class="tw-verify gold" title="Government / official">✦</span>'
+                     : t.persona.verified === 'blue' ? '<span class="tw-verify" title="Verified">✓</span>'
+                     : '';
+    const fresh = (Date.now() - t.ts) < 1500 ? ' fresh' : '';
+    out.push(
+      '<div class="tweet' + fresh + '">' +
+        '<div class="tw-avatar" style="background:' + t.persona.color + '">' + escapeHtmlGlobe(t.persona.avatar) + '</div>' +
+        '<div>' +
+          '<div class="tw-head">' +
+            '<span class="tw-name">' + escapeHtmlGlobe(t.persona.name) + '</span>' +
+            verifyHtml +
+            '<span class="tw-handle">' + escapeHtmlGlobe(t.persona.handle) + '</span>' +
+            '<span class="tw-time">' + time + '</span>' +
+          '</div>' +
+          '<div class="tw-text">' + _highlightText(escapeHtmlGlobe(t.text)) + '</div>' +
+          '<div class="tw-meta">' +
+            '<span><span class="ic">💬</span>' + t.eng.rp + '</span>' +
+            '<span><span class="ic">🔁</span>' + t.eng.rt + '</span>' +
+            '<span><span class="ic">♥</span>' + t.eng.lk + '</span>' +
+            '<span><span class="ic">📊</span>' + t.eng.vw + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  });
+  root.innerHTML = out.join('');
+  document.getElementById('rt-count-feed').textContent = state.tweets.length;
+}
+
+function escapeHtmlGlobe(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ---------------------------------------------------------------------------
+// Rail tabs — switch between Social Pulse and Events panes.
+// ---------------------------------------------------------------------------
+function setActiveRail(name) {
+  state.activeRail = name;
+  document.querySelectorAll('.rt-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.rail === name);
+  });
+  const feedPane = document.getElementById('feed-pane');
+  const eventsPane = document.getElementById('events-pane');
+  if (feedPane)   feedPane.hidden   = (name !== 'feed');
+  if (eventsPane) eventsPane.hidden = (name !== 'events');
+}
+document.querySelectorAll('.rt-btn').forEach(btn => {
+  btn.addEventListener('click', () => setActiveRail(btn.dataset.rail));
+});
+
+// Initial render of the social feed so the placeholder hooks up properly,
+// and ensure both tab counts are in sync.
+renderSocialFeed();
+const _evCount = document.getElementById('rt-count-events');
+if (_evCount) _evCount.textContent = state.events.length;
+
+// Hook tweet generation into the existing event ingestion. We patch
+// ingestState by wrapping it so we don't have to edit the original.
+const _origIngestState = ingestState;
+window.ingestState = function patchedIngest(payload) {
+  const beforeLen = state.events.length;
+  const ret = _origIngestState(payload);
+  // If a new event was added, generate tweets for it.
+  if (state.events.length > beforeLen) {
+    const newEvents = state.events.slice(beforeLen);
+    for (const ev of newEvents) {
+      const tweets = generateTweetsForEvent(ev);
+      for (const t of tweets) state.tweets.push(t);
+    }
+    // Cap memory usage
+    if (state.tweets.length > 200) state.tweets = state.tweets.slice(-200);
+    renderSocialFeed();
+    const evCountEl = document.getElementById('rt-count-events');
+    if (evCountEl) evCountEl.textContent = state.events.length;
+  }
+  return ret;
+};
+
+</script>
+</body>
+</html>
