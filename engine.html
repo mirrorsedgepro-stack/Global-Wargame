@@ -365,6 +365,7 @@
       Add 2–4 players, each controlling one actor country. Players take turns (hot-seat). Each turn: draw hand, play one card, see effects.
     </p>
     <div id="player-slots"></div>
+    <p id="setup-warn" style="color:var(--bad);font-size:11px;min-height:1.2em;margin:8px 0 0;"></p>
     <div class="setup-actions">
       <button class="btn" id="btn-add-player">+ Add Player</button>
       <button class="btn primary" id="btn-start" disabled>Start Game</button>
@@ -438,11 +439,11 @@
       <div style="color:var(--text2);line-height:1.6;font-size:12px;">
         <div style="margin-bottom:8px;"><strong>1. Attacker base</strong> = RISK_MAG × PHASE_MULT</div>
         <div style="font-family:monospace;font-size:10px;color:var(--text3);background:var(--bg3);padding:6px;margin:4px 0;">LOW=10 · MED=20 · HIGH=35 · CRI=55<br>COM×1.0 · CON×1.3 · CRI×1.6</div>
-        <div style="margin:6px 0;"><strong>2. Phase bonus</strong> — Conflict +4, Crisis +8</div>
-        <div style="margin:6px 0;"><strong>3. Actor posture</strong> — (DIME avg − 50) × 0.3</div>
-        <div style="margin:6px 0;"><strong>4. Defender value</strong> = base × 0.7, × 1.6 if canonical counter, × 1.15 if same domain</div>
-        <div style="margin:6px 0;"><strong>5. Defender posture</strong> — (DIME avg − 50) × 0.2 (subtracted)</div>
-        <div style="margin:6px 0;"><strong>6. Variance</strong> — deterministic hash of ids+turn, ±5</div>
+        <div style="margin:6px 0;">Phase scales the base once, through PHASE_MULT. There is no second phase bonus.</div>
+        <div style="margin:6px 0;"><strong>2. Actor posture</strong> — (DIME avg − 50) × 0.3, using the player who played the card</div>
+        <div style="margin:6px 0;"><strong>3. Defender value</strong> = base × 0.7, then +60% if canonical counter, then +15% if same domain. The breakdown rows are those pieces and sum to NET.</div>
+        <div style="margin:6px 0;"><strong>4. Defender posture</strong> — (DIME avg − 50) × 0.2, using the player who played the counter</div>
+        <div style="margin:6px 0;"><strong>5. Variance</strong> — deterministic hash of card ids + turn + play, ±5</div>
       </div>
     </div>
 
@@ -514,7 +515,7 @@
         <li>On your turn: play one card, or skip, or redraw</li>
         <li>Other players' hands are scanned — if any holds a canonical counter, a prompt lets them play it or pass</li>
         <li>Adjudicator resolves · world state updates · log records the action</li>
-        <li>End of turn: market prices snapshot, stockpiles drift, risk decays toward baseline 30</li>
+        <li>End of round (after every player has acted): stockpiles drift, risk decays toward baseline 30</li>
         <li>Net exporters of a commodity gain GDP when its price rises; net importers feel the squeeze</li>
         <li><strong>30 turns per player</strong> — long-horizon campaigns; effects compound</li>
         <li>Winner = highest favourability at end</li>
@@ -706,12 +707,18 @@ const COUNTRY_BASES = {
   'NATO':            { dime:{D:75,I:75,M:90,E:80}, gdp:120, stockpiles:{rareEarths:40,semiconductors:60,energy:60,grain:75} },
   'Belgium':         { dime:{D:70,I:60,M:50,E:70}, gdp:75,  stockpiles:{rareEarths:25,semiconductors:35,energy:30,grain:55} },
 };
-// Common aliases — point at the canonical entry above so cards using
-// shorthand actor names still find the right baseline.
-COUNTRY_BASES['US'] = COUNTRY_BASES['United States'];
-COUNTRY_BASES['UK'] = COUNTRY_BASES['United Kingdom'];
-COUNTRY_BASES['United Arab Emirates'] = COUNTRY_BASES['UAE'];
-COUNTRY_BASES['European Union'] = COUNTRY_BASES['EU'];
+// Shorthand on older cards. pack/build.py rewrites these to the canonical
+// name; this map is the runtime safety net so a stale sidecar still resolves.
+const ACTOR_ALIAS = {
+  'US': 'United States',
+  'UK': 'United Kingdom',
+  'United Arab Emirates': 'UAE',
+  'European Union': 'EU',
+};
+function canonicalActor(name) {
+  if (!name) return name;
+  return ACTOR_ALIAS[name] || name;
+}
 
 function createWorld() {
   const world = {
@@ -725,13 +732,18 @@ function createWorld() {
     },
     globalRisk: 30,
   };
-  const allActors = new Set();
-  CARDS.forEach(c => (c.actors || []).forEach(a => allActors.add(a)));
-  allActors.forEach(a => {
-    const base = COUNTRY_BASES[a] || {};
-    world.countries[a] = baseCountry(base.dime);
-    if (base.gdp) world.countries[a].gdp = base.gdp;
-    if (base.stockpiles) world.countries[a].stockpiles = Object.assign(world.countries[a].stockpiles, base.stockpiles);
+  // Every catalogue country gets a ledger, including ones with no cards
+  // (Afghanistan, Spain). Card actors are merged in after alias resolution
+  // so a shorthand name cannot open a second ledger.
+  const names = new Set(Object.keys(COUNTRY_BASES));
+  CARDS.forEach(c => (c.actors || []).forEach(a => names.add(canonicalActor(a))));
+  names.forEach(a => {
+    const key = canonicalActor(a);
+    if (world.countries[key]) return;
+    const base = COUNTRY_BASES[key] || {};
+    world.countries[key] = baseCountry(base.dime);
+    if (base.gdp) world.countries[key].gdp = base.gdp;
+    if (base.stockpiles) world.countries[key].stockpiles = Object.assign(world.countries[key].stockpiles, base.stockpiles);
   });
   return world;
 }
@@ -739,6 +751,7 @@ function createWorld() {
 let WORLD = createWorld();
 
 function favourabilityScore(country) {
+  if (!country || !country.dime || !country.stockpiles) return 0;
   const dimeAvg = (country.dime.D + country.dime.I + country.dime.M + country.dime.E) / 4;
   const stockAvg = (country.stockpiles.rareEarths + country.stockpiles.semiconductors
                     + country.stockpiles.energy + country.stockpiles.grain) / 4;
@@ -749,63 +762,67 @@ function favourabilityScore(country) {
 // ===========================================================================
 // ADJUDICATION
 // ===========================================================================
-function adjudicate(attackCard, defendCard, world) {
+function adjudicate(attackCard, defendCard, world, ctx) {
   world = world || WORLD;
+  ctx = ctx || {};
   const a = scoreCard(attackCard);
   const breakdown = [];
+  // Rows are rounded to 0.1 before they are added, so the displayed
+  // figures sum to NET exactly.
+  const push = (label, n) => {
+    const v = Math.round(n * 10) / 10;
+    breakdown.push({ label, value: (v > 0 ? '+' : '') + v.toFixed(1), n: v });
+    return v;
+  };
 
-  let net = a.baseEffectiveness;
-  breakdown.push({ label: `Attacker base (${attackCard.id}, ${attackCard.risk})`, value: net.toFixed(1) });
+  let net = push(`Attacker base (${attackCard.id}, ${attackCard.risk})`, a.baseEffectiveness);
 
-  // Phase context
-  const phaseBonus = (attackCard.phase === 'CRI') ? 8 : (attackCard.phase === 'CON' ? 4 : 0);
-  if (phaseBonus) { net += phaseBonus; breakdown.push({ label: `${PHASE_LABEL[attackCard.phase]} phase bonus`, value: `+${phaseBonus}` }); }
+  // Phase is already inside baseEffectiveness via PHASE_MULT. A second
+  // flat bonus (CON +4 / CRI +8) double-counted the same factor.
 
-  // Actor strength (average DIME)
-  const primaryActor = (attackCard.actors || [])[0];
-  if (primaryActor && world.countries[primaryActor]) {
-    const avg = (world.countries[primaryActor].dime.D + world.countries[primaryActor].dime.I
-                 + world.countries[primaryActor].dime.M + world.countries[primaryActor].dime.E) / 4;
-    const mod = (avg - 50) * 0.3;
-    net += mod;
-    breakdown.push({ label: `${primaryActor} posture (${Math.round(avg)})`, value: (mod >= 0 ? '+' : '') + mod.toFixed(1) });
+  // Posture of the player who played the card. The sandbox, which has no
+  // player, falls back to the card's first actor.
+  const attackerName = canonicalActor(ctx.attacker || (attackCard.actors || [])[0]);
+  const attacker = attackerName && world.countries[attackerName];
+  if (attacker) {
+    const avg = (attacker.dime.D + attacker.dime.I + attacker.dime.M + attacker.dime.E) / 4;
+    net += push(`${attackerName} posture (${Math.round(avg)})`, (avg - 50) * 0.3);
   }
 
   if (defendCard) {
     const d = scoreCard(defendCard);
     let defenseValue = d.baseEffectiveness * 0.7;
+    net += push(`Defender base (${defendCard.id}, ${defendCard.risk})`, -defenseValue);
 
-    // Counter bonus: B is a canonical counter to A
     if (isCounter(attackCard, defendCard)) {
-      defenseValue *= 1.6;
-      breakdown.push({ label: `Canonical counter (${defendCard.id} counters ${attackCard.id})`, value: `-${(d.baseEffectiveness * 0.7 * 0.6).toFixed(1)}` });
+      const inc = defenseValue * 0.6;
+      defenseValue += inc;
+      net += push(`Canonical counter (${defendCard.id} counters ${attackCard.id})`, -inc);
     }
 
-    // Domain synergy: same primary domain = direct counter
     if (defendCard.domain === attackCard.domain) {
-      defenseValue *= 1.15;
+      const inc = defenseValue * 0.15;
+      defenseValue += inc;
+      net += push('Same-domain synergy', -inc);
     }
 
-    net -= defenseValue;
-    breakdown.push({ label: `Defender (${defendCard.id}, ${defendCard.risk})`, value: `-${defenseValue.toFixed(1)}` });
-
-    // Defender posture
-    const dActor = (defendCard.actors || [])[0];
-    if (dActor && world.countries[dActor]) {
-      const avg = (world.countries[dActor].dime.D + world.countries[dActor].dime.I
-                   + world.countries[dActor].dime.M + world.countries[dActor].dime.E) / 4;
-      const mod = (avg - 50) * 0.2;
-      net -= mod;
-      breakdown.push({ label: `${dActor} defensive posture (${Math.round(avg)})`, value: (mod >= 0 ? '-' : '+') + Math.abs(mod).toFixed(1) });
+    const defenderName = canonicalActor(ctx.defender || (defendCard.actors || [])[0]);
+    const defender = defenderName && world.countries[defenderName];
+    if (defender) {
+      const avg = (defender.dime.D + defender.dime.I + defender.dime.M + defender.dime.E) / 4;
+      net += push(`${defenderName} defensive posture (${Math.round(avg)})`, -((avg - 50) * 0.2));
     }
   }
 
-  // Risk variance (deterministic: derive from card id hash)
-  const h = hash(attackCard.id + (defendCard ? defendCard.id : '') + world.turn);
+  // Seed changes every play. world.turn is never advanced, so it cannot
+  // be the seed; callers pass the game turn and a per-play counter.
+  const turn = ctx.turn != null ? ctx.turn : 0;
+  const play = ctx.play != null ? ctx.play : 0;
+  const h = hash(attackCard.id + '|' + (defendCard ? defendCard.id : '') + '|' + turn + '|' + play);
   const variance = (h % 11) - 5;  // -5..+5
-  net += variance;
-  breakdown.push({ label: 'Contextual variance', value: (variance >= 0 ? '+' : '') + variance });
+  net += push('Contextual variance', variance);
 
+  net = Math.round(net * 10) / 10;
   let outcome, outcomeText;
   if (net >= 30) {
     outcome = 'BEST';
@@ -818,7 +835,7 @@ function adjudicate(attackCard, defendCard, world) {
     outcomeText = 'Backfire — the action produces counter-effects favouring the opposition.';
   }
 
-  return { net: Math.round(net * 10) / 10, outcome, outcomeText, breakdown };
+  return { net, outcome, outcomeText, breakdown };
 }
 
 function hash(str) {
@@ -832,10 +849,13 @@ function hash(str) {
 // ===========================================================================
 // EFFECT APPLICATION
 // ===========================================================================
-function applyEffects(card, outcome, world, targetCountry) {
+function applyEffects(card, outcome, world, targetCountry, actorName) {
   world = world || WORLD;
   const scoring = scoreCard(card);
-  const actor = (card.actors || [])[0];
+  // Effects land on the player who played the card. actorName is omitted
+  // only by the sandbox, which then uses the card's first actor.
+  const actor = canonicalActor(actorName || (card.actors || [])[0]);
+  targetCountry = canonicalActor(targetCountry);
   if (!actor || !world.countries[actor]) return;
 
   const mult = outcome === 'BEST' ? 1.0 : outcome === 'PARTIAL' ? 0.4 : -0.6;
@@ -878,9 +898,11 @@ function applyEffects(card, outcome, world, targetCountry) {
   // every keyword in a punitive-vocab list.
   const text = ((card.title||'') + ' ' + (card.summary||'')).toLowerCase();
 
-  const RESTRICTIVE_RX = /\b(embargo|sanction|export[ -]?control|blockade|disrupt|strike|shortage|freeze|shut[ -]?down|cut[ -]?off|attack|degrad|damage|tariff|seiz|interdict|chokepoint|denial|exclusion|war\b|warfare|combat|hostil|threat|coerc|kinetic|destruction|destroy|kill[ -]?chain|deepfake|cyber[ -]?attack|hack|spoof|prepositioning|invasion|amphib|nuclear|emp\b|missile|icbm|surge|militari[sz]|exercise|drill|surveillance|espionage|disinformation|propaganda|interfer|destabil|breach|theft|leak|sabotag|harass|fonop|incursion|provoc|bastion|standoff|ultimat|expulsion|expel|deploy|mobiliz|lockdown|violation|warning|coercion|punitive|veto|reject|seizure|raid|operationalization|enhancement|modernization|capture|trigger|inspection|toll|test\b|shadow|fear)\b/i;
+  // Stems are matched at a word start only. A trailing \b made
+  // "sanction", "degrad", "mobiliz" and the rest miss their inflected forms.
+  const RESTRICTIVE_RX = /\b(embargo|sanction|export[ -]?control|blockade|disrupt|strike|shortage|freeze|shut[ -]?down|cut[ -]?off|attack|degrad|damage|tariff|seiz|interdict|chokepoint|denial|exclusion|war\b|warfare|combat|hostil|threat|coerc|kinetic|destruction|destroy|kill[ -]?chain|deepfake|cyber[ -]?attack|hack|spoof|prepositioning|invasion|amphib|nuclear|emp\b|missile|icbm|surge|militari[sz]|exercise|drill|surveillance|espionage|disinformation|propaganda|interfer|destabil|breach|theft|leak|sabotag|harass|fonop|incursion|provoc|bastion|standoff|ultimat|expulsion|expel|deploy|mobiliz|lockdown|violation|warning|coercion|punitive|veto|reject|seizure|raid|operationalization|enhancement|modernization|capture|trigger|inspection|toll|test\b|shadow|fear)/i;
 
-  const EXPANSIVE_RX = /\b(partnership|cooperation|agreement|accord|alliance|summit|forum|council|dialogue|deepening|integration|peaceful|peace|stabili[sz]|de[ -]?escalat|easing|stewardship|reform|joint declaration|investment|establish|inaugurat|humanitarian|mediation|reset|rapprochement|aid package|food security|stockpile|stockpiling|trade deal|outreach|currency pilot|gateway|sovereign fund|sovereign wealth|cease[ -]?fire|truce|negotiation|membership|pathway|fund\b|initiative|deepening)\b/i;
+  const EXPANSIVE_RX = /\b(partnership|cooperation|agreement|accord|alliance|summit|forum|council|dialogue|deepening|integration|peaceful|peace|stabili[sz]|de[ -]?escalat|easing|stewardship|reform|joint declaration|investment|establish|inaugurat|humanitarian|mediation|reset|rapprochement|aid package|food security|stockpile|stockpiling|trade deal|outreach|currency pilot|gateway|sovereign fund|sovereign wealth|cease[ -]?fire|truce|negotiation|membership|pathway|fund\b|initiative|deepening)/i;
 
   // Offensive Information ops — cyber, disinfo, espionage — are destabilizing
   // even when the card title sounds neutral.
@@ -908,8 +930,10 @@ function applyEffects(card, outcome, world, targetCountry) {
   }
   const sign = isRestrictive ? 1 : -1;
   const priceShift = scoring.baseEffectiveness * 0.08 * mult * sign;
-  const stockMag   = Math.abs(scoring.baseEffectiveness * 0.06 * mult);
-  const stockHit   = (sign === 1) ? -stockMag : stockMag;          // BEST: target loses OR actor gains
+  // mult is negative on BACKFIRE, so the stockpile move flips with the
+  // price move. Math.abs(mult) left a backfired restriction still draining
+  // the target.
+  const stockHit   = -sign * scoring.baseEffectiveness * 0.06 * mult;
   const stockHolder = (isRestrictive && targetCountry && targetCountry !== actor && world.countries[targetCountry])
     ? targetCountry : actor;
 
@@ -942,16 +966,15 @@ function applyEffects(card, outcome, world, targetCountry) {
   };
   const ripple = DOMAIN_RIPPLE[card.domain] || DOMAIN_RIPPLE.D;
   const baselineMag = scoring.baseEffectiveness * 0.025 * mult * sign;     // ~3-5pt per CRITICAL play
-  const baselineStockMag = Math.abs(scoring.baseEffectiveness * 0.018 * mult);
+  const baselineStock = -sign * scoring.baseEffectiveness * 0.018 * mult;
   COMMODITIES.forEach(k => {
     if (matchedCommodities.has(k)) return; // keyword layer already handled it (stronger)
     const w = ripple[k] || 0;
     if (w === 0) return;
     world.market[k].price = clamp(world.market[k].price + baselineMag * w, 40, 300);
     if (world.countries[stockHolder] && world.countries[stockHolder].stockpiles) {
-      const hit = (sign === 1 ? -baselineStockMag : baselineStockMag) * w;
       world.countries[stockHolder].stockpiles[k] =
-        clamp(world.countries[stockHolder].stockpiles[k] + hit, 0, 100);
+        clamp(world.countries[stockHolder].stockpiles[k] + baselineStock * w, 0, 100);
     }
   });
 
@@ -990,10 +1013,12 @@ function snapshotMarketPrev(world) {
 }
 
 // ---------------------------------------------------------------------------
-// END-OF-TURN MARKET TICK
-// Runs once per card play AFTER applyEffects. Pushes price↔stockpile feedback
-// into GDP, decays risk toward baseline, drifts stockpiles toward equilibrium.
-// Does NOT touch m.prev — that's already snapshotted by snapshotMarketPrev().
+// END-OF-ROUND MARKET TICK
+// Runs once per round, after every player has acted, not once per player.
+// A per-play tick made a 4-player game drift about twice as fast as a
+// 2-player game over the same number of rounds. Pushes price↔stockpile
+// feedback into GDP, decays risk toward baseline, drifts stockpiles toward
+// equilibrium. Does NOT touch m.prev — snapshotMarketPrev() owns that.
 // ---------------------------------------------------------------------------
 function endOfTurnMarketUpdate(world) {
   world = world || WORLD;
@@ -1040,17 +1065,42 @@ document.querySelectorAll('nav.tabs button').forEach(btn => {
   });
 });
 
+function postTarget() {
+  // file:// pages report origin "null"; '*' is the only target that delivers.
+  if (location.protocol === 'file:' || !location.origin || location.origin === 'null') return '*';
+  return location.origin;
+}
+function acceptMessage(e) {
+  if (location.protocol === 'file:' || !location.origin || location.origin === 'null') {
+    return e.origin === 'null' || e.origin === 'file://';
+  }
+  return e.origin === location.origin;
+}
+function gameInProgress() {
+  const board = document.getElementById('play-game');
+  return !!(GAME && board && !board.hidden);
+}
 function closeEngine() {
+  const modal = document.getElementById('counter-modal');
+  if (modal && !modal.hidden) return;
+  if (gameInProgress()) {
+    if (!window.confirm('Leave this game? The match in progress will be lost.')) return;
+  }
   // If embedded in a host page, let the parent handle the close.
   if (window.parent && window.parent !== window) {
-    try { parent.postMessage({type:'wargame-close'}, '*'); return; } catch(e){}
+    try { parent.postMessage({type:'wargame-close'}, postTarget()); return; } catch(e){}
   }
   // Standalone: go back to home.
   window.location.href = 'home.html';
 }
 document.getElementById('btn-close').addEventListener('click', closeEngine);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeEngine();
+  if (e.key !== 'Escape') return;
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  const modal = document.getElementById('counter-modal');
+  if (modal && !modal.hidden) return;
+  closeEngine();
 });
 
 // ===========================================================================
@@ -1077,7 +1127,7 @@ function openGlobeDirect() {
 // Open Globe View — route per mode
 document.getElementById('btn-open-globe').addEventListener('click', () => {
   if (IS_EMBEDDED) {
-    try { parent.postMessage({type:'wargame-open-globe'}, '*'); } catch(e){}
+    try { parent.postMessage({type:'wargame-open-globe'}, postTarget()); } catch(e){}
   } else {
     openGlobeDirect();
   }
@@ -1089,6 +1139,10 @@ document.getElementById('btn-open-globe').addEventListener('click', () => {
 // Listen for the globe's ready handshake (standalone mode). In embedded mode
 // the bundle handles this and forwards state; we just replay lastBroadcast.
 window.addEventListener('message', (e) => {
+  if (!acceptMessage(e)) return;
+  const fromGlobe = globeWin && e.source === globeWin;
+  const fromParent = IS_EMBEDDED && e.source === window.parent;
+  if (!fromGlobe && !fromParent) return;
   const d = e.data;
   if (!d || typeof d !== 'object') return;
   if (d.type === 'wargame-globe-ready') {
@@ -1099,7 +1153,7 @@ window.addEventListener('message', (e) => {
 
 function pushToGlobeDirect(payload) {
   if (!globeWin || globeWin.closed) return;
-  try { globeWin.postMessage({type:'wargame-state', payload}, '*'); } catch(e){}
+  try { globeWin.postMessage({type:'wargame-state', payload}, postTarget()); } catch(e){}
 }
 
 // Broadcast state — in embedded mode via parent relay; in standalone mode
@@ -1113,6 +1167,7 @@ function broadcastState(event) {
       currentIdx: GAME.currentIdx,
       turn: GAME.turn,
       totalTurns: GAME.totalTurns,
+      turnsPerPlayer: TURNS_PER_PLAYER,
       log: GAME.log,
     } : null,
     event: event || null,
@@ -1120,7 +1175,7 @@ function broadcastState(event) {
   lastBroadcast = payload;
 
   if (IS_EMBEDDED) {
-    try { parent.postMessage({type: 'wargame-state-out', payload}, '*'); } catch(e){}
+    try { parent.postMessage({type: 'wargame-state-out', payload}, postTarget()); } catch(e){}
   }
   // Always try direct-to-globe too; covers standalone mode AND a bundle case
   // where the user opened globe.html as a sibling window manually.
@@ -1178,22 +1233,30 @@ if (CARDS.length) {
   previewCard(CARDS[0], document.getElementById('adj-attack-preview'));
 }
 
+let SANDBOX_SEQ = 0;
 document.getElementById('btn-adjudicate').addEventListener('click', () => {
   const a = cardById(document.getElementById('adj-attack').value);
   const d = cardById(document.getElementById('adj-defend').value);
   if (!a) return;
-  const attackerCountry = (a.actors || [])[0] || 'United States';
-  const targetCountry   = deriveTarget(a, attackerCountry, d);
+  const attackerCountry = canonicalActor((a.actors || [])[0] || 'United States');
+  const defenderCountry = d ? canonicalActor((d.actors || [])[0]) : null;
+  // A live match keeps its own world. The sandbox runs on a copy.
+  const live = gameInProgress();
+  const world = live ? structuredClone(WORLD) : WORLD;
+  const targetCountry = deriveTarget(a, attackerCountry, d, defenderCountry, world);
 
-  // Apply real effects so adjudicate actually moves world state
-  const before = snapshotDime(attackerCountry);
-  const beforeT = attackerCountry !== targetCountry ? snapshotDime(targetCountry) : null;
-  snapshotMarketPrev(WORLD);
-  const res = adjudicate(a, d, WORLD);
-  applyEffects(a, res.outcome, WORLD, targetCountry);
-  endOfTurnMarketUpdate(WORLD);
-  const after = snapshotDime(attackerCountry);
-  const afterT = attackerCountry !== targetCountry ? snapshotDime(targetCountry) : null;
+  const before = snapshotDime(attackerCountry, world);
+  const beforeT = attackerCountry !== targetCountry ? snapshotDime(targetCountry, world) : null;
+  snapshotMarketPrev(world);
+  const res = adjudicate(a, d, world, {
+    attacker: attackerCountry,
+    defender: defenderCountry,
+    turn: 0,
+    play: ++SANDBOX_SEQ,
+  });
+  applyEffects(a, res.outcome, world, targetCountry, attackerCountry);
+  const after = snapshotDime(attackerCountry, world);
+  const afterT = attackerCountry !== targetCountry ? snapshotDime(targetCountry, world) : null;
 
   document.getElementById('adj-result').innerHTML = `
     <div class="result-panel">
@@ -1210,10 +1273,12 @@ document.getElementById('btn-adjudicate').addEventListener('click', () => {
         <div class="breakdown-row total"><div class="breakdown-label">NET</div><div class="breakdown-value">${res.net >= 0 ? '+' : ''}${res.net}</div></div>
       </div>
       <div class="outcome-text">${res.outcomeText}</div>
+      ${live ? '<div class="outcome-text">Sandbox only. The live game was not changed.</div>' : ''}
     </div>
   `;
 
-  // Push to globe so it lights up even outside Play Game mode
+  // Outside a live match the sandbox is the world, so the globe follows it.
+  if (live) return;
   broadcastState({
     phase: a.phase,
     actor: attackerCountry,
@@ -1291,6 +1356,7 @@ function renderStats() {
 }
 
 document.getElementById('btn-reset-world').addEventListener('click', () => {
+  if (gameInProgress() && !window.confirm('Reset the world while a game is in progress? Player scores will change.')) return;
   WORLD = createWorld();
   renderStats();
 });
@@ -1310,13 +1376,17 @@ function playerOptions() {
   return Object.keys(COUNTRY_BASES).map(c => `<option value="${c}">${c}</option>`).join('');
 }
 
+function selectedCountries() {
+  return Array.from(setupSlots.querySelectorAll('.setup-slot')).map(s => s.querySelector('select').value);
+}
 function refreshStartEnabled() {
   const slots = setupSlots.querySelectorAll('.setup-slot');
-  const valid = slots.length >= 2 && Array.from(slots).every(s => {
-    const n = s.querySelector('input').value.trim();
-    return n.length > 0;
-  });
-  startBtn.disabled = !valid;
+  const named = slots.length >= 2 && Array.from(slots).every(s => s.querySelector('input').value.trim().length > 0);
+  const countries = selectedCountries();
+  const dup = countries.length !== new Set(countries).size;
+  const warn = document.getElementById('setup-warn');
+  if (warn) warn.textContent = dup ? 'Each player needs a different country.' : '';
+  startBtn.disabled = !named || dup;
 }
 
 function addPlayerSlot(name, country) {
@@ -1332,6 +1402,7 @@ function addPlayerSlot(name, country) {
   `;
   if (country) row.querySelector('select').value = country;
   row.querySelector('input').addEventListener('input', refreshStartEnabled);
+  row.querySelector('select').addEventListener('change', refreshStartEnabled);
   row.querySelector('.btn-remove').addEventListener('click', () => { row.remove(); renumberSlots(); refreshStartEnabled(); });
   setupSlots.appendChild(row);
   addPlayerBtn.disabled = setupSlots.children.length >= 4;
@@ -1354,15 +1425,20 @@ startBtn.addEventListener('click', () => {
   const players = slots.map((s, i) => ({
     idx: i,
     name: s.querySelector('input').value.trim() || `Player ${i+1}`,
-    country: s.querySelector('select').value,
+    country: canonicalActor(s.querySelector('select').value),
     cardsPlayed: [],
     score: 0,
   }));
+  if (new Set(players.map(p => p.country)).size !== players.length) {
+    refreshStartEnabled();
+    return;
+  }
   WORLD = createWorld();
   GAME = {
     players,
     currentIdx: 0,
     turn: 1,
+    playSeq: 0,
     totalTurns: TURNS_PER_PLAYER * players.length,
     hands: {},
     log: [],
@@ -1376,13 +1452,15 @@ startBtn.addEventListener('click', () => {
 });
 
 function drawHand(country) {
-  const pool = CARDS.filter(c => (c.actors || []).includes(country));
-  const safePool = pool.length ? pool : CARDS.slice();
+  const canon = canonicalActor(country);
+  const pool = CARDS.filter(c => (c.actors || []).map(canonicalActor).includes(canon));
+  // A country with no cards (Afghanistan, Spain) gets an empty hand and
+  // can skip. Falling back to the whole deck dealt them everyone else's cards.
   const hand = [];
   const used = new Set();
   let attempts = 0;
-  while (hand.length < HAND_SIZE && attempts < 500) {
-    const pick = safePool[Math.floor(Math.random() * safePool.length)];
+  while (pool.length && hand.length < HAND_SIZE && hand.length < pool.length && attempts < 500) {
+    const pick = pool[Math.floor(Math.random() * pool.length)];
     if (!used.has(pick.id)) { used.add(pick.id); hand.push(pick); }
     attempts++;
   }
@@ -1461,7 +1539,7 @@ function renderLog() {
 // card text against known country names, else default to attacker's country.
 const TARGET_KEYWORDS = {
   // East Asia
-  'China': /\b(china|prc|chinese|beijing|pla|pla[-\s]?n|plaaf|sinopec)\b/i,
+  'China': /\b(china|prc|chinese|beijing|pla|plaaf|sinopec)\b/i,
   'Taiwan': /\b(taiwan|roc|taipei|taiwanese)\b/i,
   'Japan': /\b(japan|jsdf|tokyo|japanese|kagoshima)\b/i,
   'South Korea': /\b(south korea|rok|seoul|korean peninsula|south korean)\b/i,
@@ -1484,7 +1562,7 @@ const TARGET_KEYWORDS = {
   'Uzbekistan': /\b(uzbekistan|uzbek|tashkent|samarkand)\b/i,
   // North America + UK + EU
   'United Kingdom': /\b(united kingdom|uk\b|britain|british|london)\b/i,
-  'United States': /\b(united states|\busa\b|\bus\b|washington|pentagon|white house|american)\b/i,
+  'United States': /\b(united states|\busa\b|washington|pentagon|white house|american)\b/i,
   'Canada': /\b(canada|canadian|ottawa|rcmp)\b/i,
   'France': /\b(france|french|paris|élysée|elysée)\b/i,
   'Germany': /\b(germany|german|berlin|bundeswehr|deutsch)\b/i,
@@ -1495,7 +1573,7 @@ const TARGET_KEYWORDS = {
   'Netherlands': /\b(netherlands|dutch|amsterdam|the hague|rotterdam|asml)\b/i,
   'Norway': /\b(norway|norwegian|oslo|svalbard)\b/i,
   'EU': /\b(european union|\beu\b|brussels|euro\s|eurozone)\b/i,
-  'NATO': /\b(nato|alliance|article 5|brussels)\b/i,
+  'NATO': /\b(nato|article 5|brussels)\b/i,
   // Middle East
   'Israel': /\b(israel|israeli|jerusalem|tel aviv|idf|mossad)\b/i,
   'Iran': /\b(iran|iranian|tehran|irgc|persian|hezbollah|houthi)\b/i,
@@ -1512,30 +1590,34 @@ const TARGET_KEYWORDS = {
   'Morocco': /\b(morocco|moroccan|rabat|casablanca)\b/i,
   'DRC': /\b(drc|democratic republic of congo|congo|kinshasa|katanga)\b/i,
 };
-function deriveTarget(card, attacker, defenderCard) {
-  // 1) Defender's first actor (if any) and not the attacker itself
-  if (defenderCard && defenderCard.actors) {
-    const firstDef = defenderCard.actors[0];
-    if (firstDef && firstDef !== attacker) return firstDef;
-  }
-  // 2) Keyword sweep across title + summary
+function deriveTarget(card, attacker, defenderCard, defenderCountry, world) {
+  world = world || WORLD;
+  attacker = canonicalActor(attacker);
+  // 1) The player who countered, else that card's first actor.
+  const def = canonicalActor(defenderCountry || (defenderCard && defenderCard.actors && defenderCard.actors[0]));
+  if (def && def !== attacker && world.countries[def]) return def;
+  // 2) Keyword sweep across title + summary. Only countries that exist
+  //    in this world can receive the effect.
   const text = ((card.title || '') + ' ' + (card.summary || '')).toLowerCase();
   const candidates = [];
   for (const country in TARGET_KEYWORDS) {
     if (country === attacker) continue;
+    if (!world.countries[country]) continue;
     if (TARGET_KEYWORDS[country].test(text)) candidates.push(country);
   }
   if (candidates.length) return candidates[0];
   // 3) Fall back to a different actor listed on the card
-  const otherActor = (card.actors || []).find(a => a && a !== attacker);
+  const otherActor = (card.actors || []).map(canonicalActor).find(a => a && a !== attacker && world.countries[a]);
   if (otherActor) return otherActor;
   // 4) Nothing — self effect
   return attacker;
 }
 
-function snapshotDime(countryName) {
-  if (!WORLD.countries[countryName] || !WORLD.countries[countryName].dime) return null;
-  return Object.assign({}, WORLD.countries[countryName].dime);
+function snapshotDime(countryName, world) {
+  world = world || WORLD;
+  const key = canonicalActor(countryName);
+  if (!world.countries[key] || !world.countries[key].dime) return null;
+  return Object.assign({}, world.countries[key].dime);
 }
 function diffDime(before, after) {
   if (!before || !after) return null;
@@ -1604,16 +1686,17 @@ function promptForCounter(playedCard, attacker, options, callback) {
   function cleanup(choice) {
     modal.hidden = true;
     btnPass.removeEventListener('click', onPass);
-    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onKey, true);
     callback(choice);
   }
   function onPass() { cleanup(null); }
   function onKey(e) {
-    // Escape closes the modal as a pass
-    if (e.key === 'Escape') { e.preventDefault(); cleanup(null); }
+    // Escape passes. Capture phase plus stopImmediatePropagation so the
+    // engine-level Escape handler cannot leave the page during the prompt.
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); cleanup(null); }
   }
   btnPass.addEventListener('click', onPass);
-  document.addEventListener('keydown', onKey);
+  document.addEventListener('keydown', onKey, true);
 
   opts.querySelectorAll('.counter-option').forEach(el => {
     const pick = (e) => {
@@ -1651,17 +1734,24 @@ function resolveCardPlay(card, handIdx, p, chosenCounter) {
   const attackerCountry  = p.country;
   const bestDefender     = chosenCounter ? chosenCounter.card  : null;
   const bestDefenderOwner = chosenCounter ? chosenCounter.owner : null;
+  const defenderCountry  = bestDefenderOwner ? bestDefenderOwner.country : null;
+  const playedTurn = GAME.turn;
 
   // Derive target for globe visualisation
-  const targetCountry = deriveTarget(card, attackerCountry, bestDefender);
+  const targetCountry = deriveTarget(card, attackerCountry, bestDefender, defenderCountry, WORLD);
 
   // Snapshot DIME + market prev BEFORE applying effects so deltas reflect this play.
   const beforeAttacker = snapshotDime(attackerCountry);
   const beforeTarget   = targetCountry !== attackerCountry ? snapshotDime(targetCountry) : null;
   snapshotMarketPrev(WORLD);
 
-  const res = adjudicate(card, bestDefender, WORLD);
-  applyEffects(card, res.outcome, WORLD, targetCountry);
+  const res = adjudicate(card, bestDefender, WORLD, {
+    attacker: attackerCountry,
+    defender: defenderCountry,
+    turn: playedTurn,
+    play: ++GAME.playSeq,
+  });
+  applyEffects(card, res.outcome, WORLD, targetCountry, attackerCountry);
 
   const afterAttacker = snapshotDime(attackerCountry);
   const afterTarget   = targetCountry !== attackerCountry ? snapshotDime(targetCountry) : null;
@@ -1673,7 +1763,7 @@ function resolveCardPlay(card, handIdx, p, chosenCounter) {
     : `No counter played.`;
 
   GAME.log.push({
-    turn: GAME.turn,
+    turn: playedTurn,
     player: p.name + ' · ' + p.country,
     attacker: attackerCountry,
     target: targetCountry,
@@ -1699,12 +1789,7 @@ function resolveCardPlay(card, handIdx, p, chosenCounter) {
     GAME.hands[bestDefenderOwner.idx] = [...GAME.hands[bestDefenderOwner.idx], ...drawHand(bestDefenderOwner.country).slice(0, HAND_SIZE - GAME.hands[bestDefenderOwner.idx].length)];
   }
 
-  // Per-turn market dynamics — runs once per card play
-  endOfTurnMarketUpdate();
-
-  // Advance turn
-  GAME.currentIdx = (GAME.currentIdx + 1) % GAME.players.length;
-  if (GAME.currentIdx === 0) GAME.turn += 1;
+  const ended = finishPlayerTurn();
 
   const ev = {
     phase: card.phase,
@@ -1713,6 +1798,7 @@ function resolveCardPlay(card, handIdx, p, chosenCounter) {
     target: targetCountry,
     outcome: res.outcome,
     net: res.net,
+    turn: playedTurn,
     cardId: card.id,
     cardTitle: card.title,
     summary,
@@ -1721,13 +1807,20 @@ function resolveCardPlay(card, handIdx, p, chosenCounter) {
     targetDeltas,
   };
 
-  if (GAME.turn > Math.ceil(GAME.totalTurns / GAME.players.length)) {
-    broadcastState(ev);
-    endGame();
-    return;
-  }
   broadcastState(ev);
+  if (ended) { endGame(); return; }
   renderGame();
+}
+
+// One market tick per round, after the last player acts. Returns true when
+// the match has reached TURNS_PER_PLAYER.
+function finishPlayerTurn() {
+  GAME.currentIdx = (GAME.currentIdx + 1) % GAME.players.length;
+  if (GAME.currentIdx === 0) {
+    endOfTurnMarketUpdate(WORLD);
+    GAME.turn += 1;
+  }
+  return GAME.turn > TURNS_PER_PLAYER;
 }
 
 document.getElementById('btn-skip').addEventListener('click', () => {
@@ -1736,8 +1829,9 @@ document.getElementById('btn-skip').addEventListener('click', () => {
   // Snapshot prev so the per-turn delta panel doesn't keep re-showing the
   // previous play's price move on a skipped turn.
   snapshotMarketPrev(WORLD);
+  const playedTurn = GAME.turn;
   GAME.log.push({
-    turn: GAME.turn,
+    turn: playedTurn,
     player: p.name + ' · ' + p.country,
     attacker: p.country,
     target: p.country,
@@ -1747,10 +1841,7 @@ document.getElementById('btn-skip').addEventListener('click', () => {
     net: 0,
     summary: 'Player held back this turn.',
   });
-  // Markets and risk still drift on a skipped turn
-  endOfTurnMarketUpdate(WORLD);
-  GAME.currentIdx = (GAME.currentIdx + 1) % GAME.players.length;
-  if (GAME.currentIdx === 0) GAME.turn += 1;
+  const ended = finishPlayerTurn();
   broadcastState({
     phase: 'COM',
     actor: p.country,
@@ -1758,11 +1849,12 @@ document.getElementById('btn-skip').addEventListener('click', () => {
     target: p.country,
     outcome: 'PARTIAL',
     net: 0,
-    cardId: '—',
+    turn: playedTurn,
+    cardId: null,
     cardTitle: 'skipped',
     summary: 'Player held back this turn.',
   });
-  if (GAME.turn > Math.ceil(GAME.totalTurns / GAME.players.length)) endGame();
+  if (ended) endGame();
   else renderGame();
 });
 document.getElementById('btn-redraw').addEventListener('click', () => {
