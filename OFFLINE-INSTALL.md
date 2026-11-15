@@ -6,14 +6,16 @@ account.** Just unzip and open.
 ## What's in the package
 
 - `home.html` — start here
-- `index.html` — Operations Center (browse / filter all 147 cards)
+- `index.html` — Operations Center (browse / filter the catalogue)
 - `engine.html` — adjudicator, scoring, hot-seat play
 - `globe.html` — live 3D Earth with arcs and DIME compass roses
+- `tactical.html` — two-player hidden-order map
 - `card-builder.html` — author new cards, exports to a standalone .html
 - `diagnostics.html` — verify the install
 - `theme.css`, `theme.js` — shared styling and light/dark theme toggle
-- `engine-data.js` — bundled card and country data
-- 147 `*-*-*.html` files — one per action card
+- `engine-data.js` — card metadata and counter graph (147 cards in this snapshot)
+- `world-geo-data.js` — coastlines and borders for the tactical map
+- `cards/` — 147 `PHASE-DOMAIN-NN-slug.html` files, one per action card
 
 ## Install
 
@@ -29,14 +31,17 @@ account.** Just unzip and open.
 - **Score / play hands** → click `Engine`. Hot-seat 2–4 players supported.
 - **See it live** → click `Open Globe View` from the engine. Engine actions
   push to the globe via `postMessage`, no server in the loop.
+- **Tactical map** → open `Tactical Operations` from the home page.
 - **Toggle dark mode** → sun/moon button, top-right of every page. Choice
   persists in `localStorage` per machine.
 
 ## If `Diagnostics` shows red
 
-`diagnostics.html` verifies all 147 cards are present and reachable. It
-uses `fetch()` first, then falls back to `XMLHttpRequest` if the browser
-blocks `fetch()` on `file://` URLs.
+`diagnostics.html` checks that the pages and sidecars listed above are
+reachable, then audits the catalogue inside `engine-data.js` (card count,
+titles, actors, and counter edges). It does not download every file in
+`cards/`. It uses `fetch()` first, then falls back to `XMLHttpRequest` if
+the browser blocks `fetch()` on `file://` URLs.
 
 If diagnostics still fails, run a tiny static server in the folder:
 
@@ -62,3 +67,14 @@ etc.). No network access required — it serves from the local folder.
 To take a fresh snapshot from this same machine, just rezip the folder.
 Nothing in the package phones home, fetches a CDN, or writes outside
 `localStorage`.
+
+After adding or editing cards, regenerate the sidecar before you rezip.
+From the folder that contains `pack/` and `cards/`:
+
+```sh
+python3 pack/build.py
+```
+
+That rewrites `engine-data.js` from `cards/`. It also rewrites `globe.html`
+and `world-geo-data.js` from `pack/globe.template.html` plus the coastline
+JSON in `pack/`. See `README.md` for what the script leaves alone.
