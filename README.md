@@ -1,12 +1,13 @@
 # Global Wargame — 2030–2036
 
-A tabletop wargame engine built as standalone HTML pages. The catalogue currently holds **147 action cards** covering the Indo-Pacific, the Middle East, Africa, Europe, and South Asia. It includes a card builder, an adjudication engine, statistics, hot-seat multiplayer, a tactical map, and a live 3D globe.
+A tabletop wargame engine that runs as one web app in the browser, on a phone or a desktop. The catalogue currently holds **147 action cards** covering the Indo-Pacific, the Middle East, Africa, Europe, and South Asia. It includes a card builder, an adjudication engine, statistics, hot-seat multiplayer, a tactical map, and a live 3D globe.
 
 Displayed card counts on the home page and in the Operations Center are read from `engine-data.js`, so they follow the catalogue instead of a hard-coded 72.
 
 ## What's in this folder
 
-- **home.html** — Landing page. Start here.
+- **home.html** — The app. Start here. Every tool below opens inside it as a tab: a bottom tab bar on phones, a top bar on desktop. Tabs stay loaded when you switch, so a game in progress survives a look at the catalogue or the globe.
+- **overview.html** — The Home tab: project overview and links into each tool.
 - **index.html** — Operations Center: filter and search every card. Loads the catalogue from `engine-data.js`.
 - **engine.html** — Adjudicator, statistics, hot-seat play. Loads card data from `engine-data.js`.
 - **engine-data.js** — Generated sidecar with card metadata and the counter graph. Do not edit by hand.
@@ -26,11 +27,18 @@ Displayed card counts on the home page and in the Operations Center are read fro
 
 Open **home.html** in any modern browser. From there:
 
-1. **Operations Center** — browse the full catalogue.
-2. **Engine** → Play Game tab → add 2–4 players → Start Game → click ◉ Open Globe View.
-3. **Tactical Operations** — plot hidden orders on the map.
+1. **Cards** (Operations Center) — browse the full catalogue. On a phone, tap **Filters** to open country, phase, domain and risk filters.
+2. **Play** → Play Game tab → add 2–4 players → Start Game. ◉ Open Globe View switches to the **Globe** tab on a phone, or shows the globe beside the engine on a desktop.
+3. **Tactical** — plot hidden orders on the map. Drag to rotate, pinch or scroll to zoom, tap or click to plot.
 4. **Diagnostics** — confirm the sidecar and counter graph after copying the folder.
 5. **Card Builder** — author a new card, download the `.html`, and drop it into `cards/`.
+
+### One app, many pages
+
+- Opening any tool page directly (for example `engine.html`, `index.html`, or a card) sends you to the same place inside `home.html`. Addresses deep-link: `home.html#play`, `home.html#cards/COM-D-01-strategic-partnership-upgrade.html`.
+- To use a tool on its own, add `?standalone=1` (for example `engine.html?standalone=1`), or use the pop-out button in the desktop top bar or the phone **More** menu.
+- On a desktop, **Split** in the top bar keeps the globe beside the engine. The choice is remembered.
+- The light/dark toggle lives in the top bar (desktop) or **More** (phone) and applies to every tab.
 
 No install and no network are required. Everything runs locally. `OFFLINE-INSTALL.md` covers a USB-stick copy. Some browsers block `fetch()` on `file://` URLs; a local static server is only needed if Diagnostics cannot see the files.
 
@@ -107,14 +115,14 @@ At the end of each round (after every player has acted) the market settles: net 
 
 ## Globe View
 
-A separate browser window that mirrors game state in real time:
+The Globe tab (or the right half of the desktop split view) mirrors game state in real time. `home.html` relays the engine's state to it. Opened standalone, the engine still opens `globe.html` as a popup as before.
 - Orthographic Earth with 23.44° axial tilt and live subsolar lighting.
 - 1,260 GSHHS coastline polygons + 447 political borders.
 - DIME compass roses around each actor country, sized by favourability.
 - Attack arcs from attacker to target on each card play.
 - Event feed and commodity ticker.
 
-If the popup is blocked, allow popups for the page and click ◉ Open Globe View again.
+In standalone mode, if the popup is blocked, allow popups for the page and click ◉ Open Globe View again.
 
 `tactical.html` uses the same coastline and border vertices via `world-geo-data.js`.
 
@@ -150,7 +158,7 @@ If `pack/globe.template.html` is missing and `globe.html` no longer contains inl
 
 ## Troubleshooting
 
-- **Globe stays on "Waiting for game to start…"** — open it from the engine's ◉ Open Globe View button so the globe can see `window.opener`.
+- **Globe stays on "Waiting for game to start…"** — start a game in the Play tab first. The globe updates on the next card played. In standalone mode, open it from the engine's ◉ Open Globe View button so the globe can see `window.opener`.
 - **Engine or Operations Center shows "No card data loaded"** — `engine-data.js` is missing or failed to load. From the repository root run `python3 pack/build.py`, then reload.
 - **Home page counts stay as "—"** — same cause: `engine-data.js` did not load.
 - **Import adds a card but the summary looks wrong** — the card's Action section needs a `.section-label` and `.section-text` pair. Check an existing card for structure.

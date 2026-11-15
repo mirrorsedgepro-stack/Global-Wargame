@@ -5,7 +5,8 @@ account.** Just unzip and open.
 
 ## What's in the package
 
-- `home.html` — start here
+- `home.html` — start here; the whole app, with every tool as a tab
+- `overview.html` — the Home tab
 - `index.html` — Operations Center (browse / filter the catalogue)
 - `engine.html` — adjudicator, scoring, hot-seat play
 - `globe.html` — live 3D Earth with arcs and DIME compass roses
@@ -29,10 +30,12 @@ account.** Just unzip and open.
 
 - **Browse cards** → click `Operations Center` from the home page.
 - **Score / play hands** → click `Engine`. Hot-seat 2–4 players supported.
-- **See it live** → click `Open Globe View` from the engine. Engine actions
-  push to the globe via `postMessage`, no server in the loop.
+- **See it live** → click `Open Globe View` from the engine, or the Globe
+  tab. On a desktop the globe can sit beside the engine (Split button).
+  Engine actions push to the globe via `postMessage`, no server in the loop.
 - **Tactical map** → open `Tactical Operations` from the home page.
-- **Toggle dark mode** → sun/moon button, top-right of every page. Choice
+- **Toggle dark mode** → sun/moon button in the top bar (desktop) or
+  More menu (phone). Choice
   persists in `localStorage` per machine.
 
 ## If `Diagnostics` shows red
@@ -54,7 +57,9 @@ etc.). No network access required — it serves from the local folder.
 
 ## Caveats
 
-- The `Globe View` opens in a popup window — the destination browser must
+- Inside `home.html` the globe is a tab, so no popup is needed. A tool
+  opened on its own (`engine.html?standalone=1`) still opens the globe
+  in a popup window — the destination browser must
   allow popups for `file://` URLs (most do by default; some Chrome
   policies block it). If popups are blocked, open `globe.html` manually
   in another tab — the engine will still post state to it through

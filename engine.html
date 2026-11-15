@@ -290,6 +290,43 @@
     color: var(--text2);
   }
   .card-tooltip .ct-counters .none { border-style: solid; color: var(--text3); }
+  /* ---------- Touch screens: no hover previews ---------- */
+  @media (hover: none) { .card-tooltip { display: none !important; } }
+
+  /* ---------- Phones ---------- */
+  html.gw-embedded header { display: none; }
+  @media (max-width: 760px) {
+    header { padding: 10px 14px; }
+    nav.tabs { overflow-x: auto; scrollbar-width: none; position: sticky; top: 0; z-index: 30; -webkit-overflow-scrolling: touch; }
+    nav.tabs::-webkit-scrollbar { display: none; }
+    nav.tabs button { padding: 14px 14px; flex-shrink: 0; white-space: nowrap; letter-spacing: 1.5px; }
+    nav.tabs #btn-open-globe { margin: 7px 10px 7px auto !important; padding: 8px 12px !important; flex-shrink: 0; white-space: nowrap; }
+    main { padding: 14px 12px 28px; }
+    select, input[type="text"] { font-size: 16px; padding: 10px; }
+    .btn { padding: 11px 16px; }
+    .adj-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .adj-vs { padding: 0; font-size: 16px; letter-spacing: 3px; }
+    .adj-col { padding: 12px; }
+    .result-panel { padding: 14px; }
+    .result-head { flex-wrap: wrap; gap: 8px; }
+    .result-net { font-size: 26px; }
+    .countries-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .market-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .setup-slot { grid-template-columns: 28px minmax(0, 1fr) 36px; row-gap: 6px; }
+    .setup-slot > :nth-child(3) { grid-column: 2 / 3; }
+    .setup-slot > :nth-child(4) { grid-column: 3; grid-row: 1; }
+    .setup-actions { flex-wrap: wrap; }
+    .game-top { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .turn-banner .tb-player { font-size: 19px; }
+    .hand { grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 12px; }
+    .hand-card { padding: 12px 40px 12px 12px; }
+    .hand-card:hover { transform: none; }
+    .log { max-height: 40vh; }
+    .counter-modal { align-items: flex-end; }
+    .counter-modal-inner { width: 100%; max-width: none; max-height: 88vh; padding: 18px 14px calc(18px + env(safe-area-inset-bottom)); }
+    .counter-options { grid-template-columns: minmax(0, 1fr); }
+    .empty-state { padding: 24px 12px; }
+  }
 </style>
 </head>
 <body>
@@ -1055,9 +1092,9 @@ function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 // ===========================================================================
 // UI — Tab switching
 // ===========================================================================
-document.querySelectorAll('nav.tabs button').forEach(btn => {
+document.querySelectorAll('nav.tabs button[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('nav.tabs button[data-tab]').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('section.tab').forEach(s => s.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
@@ -1096,6 +1133,8 @@ function closeEngine() {
 document.getElementById('btn-close').addEventListener('click', closeEngine);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  // Inside the app shell, Escape should not throw the player out of the engine.
+  if (window.parent !== window) return;
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
   const modal = document.getElementById('counter-modal');

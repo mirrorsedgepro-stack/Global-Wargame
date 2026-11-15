@@ -2,272 +2,404 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wargame">
 <title>Global Wargame · 2030–2036</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232563EB%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27/%3E%3Cpath d=%27M7 16h18M16 7c4 4 4 14 0 18c-4-4-4-14 0-18z%27 fill=%27none%27 stroke=%27white%27 stroke-width=%271.6%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
 <style>
-  /* Page-specific intro section — soft light-grey, easy on the eyes */
-  .hero {
-    position: relative;
-    padding: 36px 32px 32px;
-    margin-bottom: 32px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-  }
-  .hero::before {
-    content: '';
-    position: absolute; left: 0; right: 0; top: 0;
-    height: 4px;
-    background: var(--gradient-accent-2);
-  }
-  .hero::after {
-    content: '';
-    position: absolute; pointer-events: none; inset: 0;
-    background:
-      radial-gradient(640px 280px at 100% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
-      radial-gradient(560px 320px at 0% 100%, color-mix(in srgb, var(--accent-2) 9%, transparent), transparent 70%);
-  }
-  .hero > * { position: relative; z-index: 1; }
-  .hero h1 {
-    font-size: 38px; font-weight: 300; letter-spacing: 1.5px;
-    line-height: 1.15;
-  }
-  .hero h1 strong {
-    font-weight: 700;
-    background: var(--gradient-accent-2);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-  .hero .kicker {
-    display: inline-block;
-    font-size: 10px; letter-spacing: 4px; color: var(--accent);
-    text-transform: uppercase; font-weight: 700;
-    margin-bottom: 14px;
-    padding: 4px 10px;
-    background: var(--accent-soft);
-    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-    border-radius: 999px;
-  }
-  .hero p.lede {
-    max-width: 760px; margin-top: 18px; color: var(--text2); font-size: 15px;
-    line-height: 1.7;
-  }
-
-  /* About-grid uses panel system */
-  .about {
+  /* ------------------------------------------------------------------
+     App shell. Every tool runs in its own iframe pane, created on first
+     visit and kept alive afterwards, so a game in progress survives a
+     trip to the catalogue or the globe.
+     ------------------------------------------------------------------ */
+  html, body { height: 100%; overflow: hidden; }
+  body.shell {
+    margin: 0;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    margin-top: 4px;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
   }
-  @media (max-width: 820px) { .about { grid-template-columns: 1fr; } }
-  .about h2 {
-    font-size: 12px; letter-spacing: 3px; font-weight: 700;
-    margin-bottom: 14px; color: var(--text2);
-    text-transform: uppercase;
+  .gw-bg { display: none; }
+
+  /* ---------- Desktop top bar ---------- */
+  .sh-top {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 16px;
+    height: 52px;
+    padding-top: env(safe-area-inset-top);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border-bottom: 1px solid var(--border);
+    position: relative; z-index: 5;
+  }
+  .sh-brand {
     display: flex; align-items: center; gap: 10px;
+    text-decoration: none; color: var(--text); white-space: nowrap;
+    font-size: 12px; letter-spacing: 2.5px; text-transform: uppercase; font-weight: 300;
   }
-  .about h2::before {
-    content: '';
-    width: 18px; height: 2px; background: var(--gradient-accent);
-    border-radius: 2px;
+  .sh-brand b { font-weight: 700; color: var(--accent); }
+  .sh-mark {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: var(--gradient-accent-2, var(--accent));
+    display: grid; place-items: center; color: #fff;
+    font: 700 12px var(--font-mono); letter-spacing: 0;
   }
-  .about p { color: var(--text2); font-size: 13px; margin-bottom: 12px; line-height: 1.7; }
-  .about ul { list-style: none; padding: 0; color: var(--text2); font-size: 13px; }
-  .about ul li {
-    padding: 8px 0;
-    border-bottom: 1px solid var(--hairline);
-    display: flex; justify-content: space-between; gap: 12px;
+  .sh-nav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .sh-nav::-webkit-scrollbar { display: none; }
+  .sh-nav button {
+    display: flex; align-items: center; gap: 7px;
+    background: none; border: 0; border-radius: 8px;
+    padding: 8px 12px; cursor: pointer;
+    font: 600 11px var(--font-ui); letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--text3); white-space: nowrap;
   }
-  .about ul li:last-child { border-bottom: 0; }
-  .about ul li span.k {
-    color: var(--text3); font: 600 10.5px var(--font-mono);
-    letter-spacing: 1.5px; text-transform: uppercase;
+  .sh-nav button svg { width: 16px; height: 16px; }
+  .sh-nav button:hover { color: var(--text); background: var(--hairline, rgba(127,127,127,.08)); }
+  .sh-nav button[aria-current="page"] { color: var(--accent); background: var(--accent-soft, rgba(37,99,235,.1)); }
+  .sh-actions { display: flex; align-items: center; gap: 6px; }
+  .sh-icon-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 34px; min-width: 34px; padding: 0 10px;
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text2); cursor: pointer; text-decoration: none;
+    font: 600 10.5px var(--font-ui); letter-spacing: 1px; text-transform: uppercase;
   }
-  .about ul li span.v { color: var(--text); font-weight: 500; }
-  .about .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .sh-icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .sh-icon-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft, transparent); }
+  .sh-icon-btn svg { width: 16px; height: 16px; }
+  .sh-icon-btn .icon-sun { display: none; }
+  [data-theme="dark"] .sh-icon-btn .icon-sun { display: block; }
+  [data-theme="dark"] .sh-icon-btn .icon-moon { display: none; }
+  #btn-split { display: none; }
+  body[data-route="play"] #btn-split, body[data-route="globe"] #btn-split { display: inline-flex; }
+
+  /* ---------- Panes ---------- */
+  .sh-stage { position: relative; min-height: 0; display: grid; }
+  .sh-pane { grid-area: 1 / 1; min-height: 0; min-width: 0; display: none; position: relative; }
+  .sh-pane.active { display: block; }
+  .sh-pane iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+  .sh-loading {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    color: var(--text3); font: 600 11px var(--font-mono); letter-spacing: 2px; text-transform: uppercase;
+    pointer-events: none;
+  }
+  .sh-pane.loaded .sh-loading { display: none; }
+
+  /* Engine and globe side by side on wide screens */
+  body.split[data-route="play"] .sh-stage,
+  body.split[data-route="globe"] .sh-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  body.split[data-route="play"] .sh-pane[data-route="play"],
+  body.split[data-route="globe"] .sh-pane[data-route="play"] { display: block; grid-area: 1 / 1; }
+  body.split[data-route="play"] .sh-pane[data-route="globe"],
+  body.split[data-route="globe"] .sh-pane[data-route="globe"] { display: block; grid-area: 1 / 2; border-left: 1px solid var(--border); }
+
+  /* ---------- Mobile tab bar ---------- */
+  .sh-tabbar { display: none; }
+  .sh-sheet-backdrop { position: fixed; inset: 0; background: rgba(5,10,25,.45); z-index: 20; }
+  .sh-sheet-backdrop[hidden] { display: none; }
+  .sh-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+    background: var(--panel); border-top: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -12px 40px rgba(0,0,0,.25);
+  }
+  .sh-sheet[hidden] { display: none; }
+  .sh-sheet .grip { width: 38px; height: 4px; border-radius: 2px; background: var(--border); margin: 4px auto 10px; }
+  .sh-sheet button, .sh-sheet a {
+    display: flex; align-items: center; gap: 14px; width: 100%;
+    background: none; border: 0; border-radius: 10px;
+    padding: 14px 12px; color: var(--text); text-decoration: none; text-align: left;
+    font: 500 15px var(--font-ui); cursor: pointer;
+  }
+  .sh-sheet button:active, .sh-sheet a:active { background: var(--hairline, rgba(127,127,127,.1)); }
+  .sh-sheet svg { width: 22px; height: 22px; color: var(--text2); flex-shrink: 0; }
+  .sh-sheet small { display: block; color: var(--text3); font-size: 12px; margin-top: 2px; }
+  .sh-sheet hr { border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
+
+  @media (max-width: 820px) {
+    .sh-top { display: none; }
+    body.shell { grid-template-rows: 1fr auto; }
+    .sh-tabbar {
+      display: grid; grid-template-columns: repeat(6, 1fr);
+      background: color-mix(in srgb, var(--panel) 96%, transparent);
+      border-top: 1px solid var(--border);
+      padding-bottom: env(safe-area-inset-bottom);
+      position: relative; z-index: 5;
+    }
+    .sh-tabbar button {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      height: 56px; background: none; border: 0; cursor: pointer;
+      color: var(--text3); font: 600 10px var(--font-ui); letter-spacing: .3px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sh-tabbar button svg { width: 22px; height: 22px; }
+    .sh-tabbar button[aria-current="page"] { color: var(--accent); }
+    .sh-tabbar button[aria-current="page"] svg { stroke-width: 2.1; }
+    /* No split view on phones */
+    body.split .sh-stage { grid-template-columns: 1fr !important; }
+    body.split .sh-pane { display: none !important; }
+    body.split .sh-pane.active { display: block !important; grid-area: 1 / 1 !important; border-left: 0 !important; }
+  }
+  @media (min-width: 821px) {
+    .sh-sheet, .sh-sheet-backdrop { display: none !important; }
+  }
+  @media (max-width: 1100px) {
+    .sh-nav button .lbl-long { display: none; }
+  }
+  @media (min-width: 1101px) {
+    .sh-nav button .lbl-short { display: none; }
+  }
 </style>
 </head>
-<body class="with-grid">
-<div class="wrap">
+<body class="shell">
 
-<section class="hero">
-  <div class="kicker">Global Wargame · Operations Command</div>
-  <h1>Global <strong>2030 · 2036</strong></h1>
-  <p class="lede">
-    A tabletop wargame engine for DIME-based strategic competition across
-    the Indo-Pacific, Middle East, Africa, South &amp; Central Asia, and
-    Europe with Ukraine. <span id="lede-cards">—</span> action cards, a deterministic adjudicator,
-    47-actor world model, hot-seat multiplayer, and a live 3D globe with
-    real GSHHS coastlines, political borders and sun-accurate lighting.
-    Pure HTML/CSS/JS — no server, no network, no install.
-  </p>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></symbol>
+    <symbol id="i-cards" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M9.5 6.5 13 3h3v3l-3.5 3.5"/><path d="M5 14l-2 2 2 2"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"/></symbol>
+    <symbol id="i-tactical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></symbol>
+    <symbol id="i-builder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+    <symbol id="i-diag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></symbol>
+    <symbol id="i-pop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></symbol>
+  </defs>
+</svg>
 
-  <div class="stat-grid">
-    <div class="stat"><span class="val" id="stat-cards">—</span><span class="lbl">Cards</span></div>
-    <div class="stat"><span class="val" id="stat-actors">—</span><span class="lbl">Actors</span></div>
-    <div class="stat"><span class="val">5</span><span class="lbl">Regions</span></div>
-    <div class="stat"><span class="val">4</span><span class="lbl">DIME Domains</span></div>
-    <div class="stat"><span class="val" id="stat-edges">—</span><span class="lbl">Counter Edges</span></div>
+<header class="sh-top">
+  <a class="sh-brand" href="#home" data-go="home"><span class="sh-mark">GW</span><span>Global <b>Wargame</b></span></a>
+  <nav class="sh-nav" aria-label="Sections">
+    <button data-go="home"><svg><use href="#i-home"/></svg><span>Home</span></button>
+    <button data-go="cards"><svg><use href="#i-cards"/></svg><span class="lbl-long">Operations Center</span><span class="lbl-short">Cards</span></button>
+    <button data-go="play"><svg><use href="#i-play"/></svg><span class="lbl-long">Engine &amp; Play</span><span class="lbl-short">Play</span></button>
+    <button data-go="globe"><svg><use href="#i-globe"/></svg><span>Globe</span></button>
+    <button data-go="tactical"><svg><use href="#i-tactical"/></svg><span>Tactical</span></button>
+    <button data-go="builder"><svg><use href="#i-builder"/></svg><span class="lbl-long">Card Builder</span><span class="lbl-short">Builder</span></button>
+    <button data-go="diagnostics"><svg><use href="#i-diag"/></svg><span>Diagnostics</span></button>
+  </nav>
+  <div class="sh-actions">
+    <button class="sh-icon-btn" id="btn-split" aria-pressed="false" title="Show the globe beside the engine"><svg><use href="#i-split"/></svg><span>Split</span></button>
+    <a class="sh-icon-btn" id="btn-pop" target="_blank" rel="noopener" title="Open this tool in its own window"><svg><use href="#i-pop"/></svg></a>
+    <button class="sh-icon-btn" data-theme-toggle aria-label="Toggle color theme" title="Toggle theme">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    </button>
   </div>
-</section>
+</header>
 
-<div class="sh">Enter the System</div>
+<main class="sh-stage" id="stage"></main>
 
-<div class="tile-grid">
-  <a class="tile ops" href="index.html">
-    <div class="icon">▣</div>
-    <div class="tile-kicker">Catalogue</div>
-    <div class="tile-title">Operations Center</div>
-    <div class="tile-desc">
-      Browse all <span id="ops-card-count">—</span> action cards with filters by phase, domain, actor
-      and risk. Full-text search. Card-level detail view.
-    </div>
-  </a>
+<nav class="sh-tabbar" aria-label="Sections">
+  <button data-go="home"><svg><use href="#i-home"/></svg>Home</button>
+  <button data-go="cards"><svg><use href="#i-cards"/></svg>Cards</button>
+  <button data-go="play"><svg><use href="#i-play"/></svg>Play</button>
+  <button data-go="globe"><svg><use href="#i-globe"/></svg>Globe</button>
+  <button data-go="tactical"><svg><use href="#i-tactical"/></svg>Tactical</button>
+  <button id="btn-more" aria-haspopup="dialog"><svg><use href="#i-more"/></svg>More</button>
+</nav>
 
-  <a class="tile engine" href="engine.html">
-    <div class="icon">⚔</div>
-    <div class="tile-kicker">Adjudicator · Stats · Play</div>
-    <div class="tile-title">Engine</div>
-    <div class="tile-desc">
-      Score a card, pit it against a counter, or run a 2–4 player
-      hot-seat campaign. Deterministic outcomes with reproducible
-      variance seeded by card IDs + turn.
-    </div>
-  </a>
-
-  <a class="tile globe" href="globe.html" target="_blank" rel="noopener">
-    <div class="icon">🌐</div>
-    <div class="tile-kicker">Live 3D Visualisation</div>
-    <div class="tile-title">Globe View</div>
-    <div class="tile-desc">
-      Orthographic Earth with real coastlines, political borders,
-      axial tilt, live sun position, DIME compass roses per country
-      and attack arcs synchronised to the engine via postMessage.
-    </div>
-  </a>
-
-  <a class="tile globe" href="tactical.html">
-    <div class="icon">⛊</div>
-    <div class="tile-kicker">2-Player Hot-Seat · Hidden Orders</div>
-    <div class="tile-title">Tactical Operations</div>
-    <div class="tile-desc">
-      Deploy a joint force package on the live 3D globe and plot hidden
-      movement/engagement orders each turn. Plans lock in, then resolve
-      simultaneously with fog-of-war detection and deterministic combat.
-    </div>
-  </a>
-
-  <a class="tile builder" href="card-builder.html">
-    <div class="icon">✎</div>
-    <div class="tile-kicker">Authoring</div>
-    <div class="tile-title">Card Builder</div>
-    <div class="tile-desc">
-      Compose new action cards with title, phase, domain, actor, risk,
-      action/effect/counter blocks. Exports a standalone .html ready
-      to import back into the Operations Center.
-    </div>
-  </a>
-
-  <a class="tile ops" href="diagnostics.html">
-    <div class="icon">✓</div>
-    <div class="tile-kicker">System Health</div>
-    <div class="tile-title">Diagnostics</div>
-    <div class="tile-desc">
-      Verify all game files are present, count cards by phase / domain /
-      region, audit counter-link integrity, and surface any broken edges.
-      Useful after a USB transfer to confirm a clean install.
-    </div>
-  </a>
+<div class="sh-sheet-backdrop" id="sheet-backdrop" hidden></div>
+<div class="sh-sheet" id="sheet" role="dialog" aria-label="More" hidden>
+  <div class="grip"></div>
+  <button data-go="builder"><svg><use href="#i-builder"/></svg><span>Card Builder<small>Author a new action card</small></span></button>
+  <button data-go="diagnostics"><svg><use href="#i-diag"/></svg><span>Diagnostics<small>Check the install and catalogue</small></span></button>
+  <hr>
+  <button id="sheet-theme"><svg><use href="#i-theme"/></svg><span>Toggle light / dark</span></button>
+  <a id="sheet-pop" target="_blank" rel="noopener"><svg><use href="#i-pop"/></svg><span>Open current tool on its own<small>Full page, outside the app</small></span></a>
 </div>
 
-<div class="sh">About the Project</div>
-
-<div class="about">
-  <section class="panel panel-accent-D">
-    <h2>Design</h2>
-    <p>
-      Players represent strategic actors pressing objectives across four
-      DIME domains — <strong>D</strong>iplomatic, <strong>I</strong>nformational,
-      <strong>M</strong>ilitary, <strong>E</strong>conomic — through three
-      phases: Competition, Conflict, and Crisis.
-    </p>
-    <p>
-      Each card carries a risk score (1–10), primary actors and a
-      keyword-flavoured DIME vector. The adjudicator computes net effect
-      from attacker posture vs defender posture, applies a phase
-      multiplier, and resolves to BEST, PARTIAL or BACKFIRE. The world
-      state updates — country DIME baselines, GDP, stockpiles, morale —
-      and the global commodity market nudges in response.
-    </p>
-    <div class="chips">
-      <span class="chip dime-D">DIPLOMATIC</span>
-      <span class="chip dime-I">INFORMATIONAL</span>
-      <span class="chip dime-M">MILITARY</span>
-      <span class="chip dime-E">ECONOMIC</span>
-      <span class="chip ph-COM">COMPETITION</span>
-      <span class="chip ph-CON">CONFLICT</span>
-      <span class="chip ph-CRI">CRISIS</span>
-    </div>
-  </section>
-
-  <section class="panel panel-accent-I">
-    <h2>Technical</h2>
-    <ul>
-      <li><span class="k">Runtime</span>     <span class="v">Browser only · no server</span></li>
-      <li><span class="k">Dependencies</span><span class="v">None</span></li>
-      <li><span class="k">Coastlines</span>  <span class="v">GSHHS-h · 1,260 polys</span></li>
-      <li><span class="k">Borders</span>     <span class="v">basemap countries_h · 447 lines</span></li>
-      <li><span class="k">Projection</span>  <span class="v">Orthographic + 23.44° tilt</span></li>
-      <li><span class="k">Lighting</span>    <span class="v">Real subsolar point (by date)</span></li>
-      <li><span class="k">Arcs</span>        <span class="v">Great-circle slerp (80 steps)</span></li>
-      <li><span class="k">Sync</span>        <span class="v">postMessage (engine ⇆ globe)</span></li>
-      <li><span class="k">Catalogue</span>   <span class="v">engine-data.js · pack/build.py</span></li>
-    </ul>
-  </section>
-</div>
-
-<footer class="page-foot">
-  <div><span class="live"></span>GWO · v2 · 2030–2036 — offline engine</div>
-  <div>DIME × COM / CON / CRI · <span id="foot-actors">—</span> Actors · <span id="foot-cards">—</span> Cards</div>
-</footer>
-
-</div>
-
-<script src="engine-data.js"></script>
 <script>
-// Counts come from engine-data.js so the landing page tracks the catalogue.
 (function () {
-  var data = window.__ENGINE_DATA;
-  if (!data || !Array.isArray(data.cards)) return;
-  var cards = data.cards;
-  var edges = 0;
-  var counters = data.counters || {};
-  Object.keys(counters).forEach(function (id) {
-    edges += (counters[id] || []).length;
-  });
-  var actors = {};
-  cards.forEach(function (card) {
-    (card.actors || []).forEach(function (actor) { actors[actor] = true; });
-  });
-  var actorCount = Object.keys(actors).length;
-  function put(id, value) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = value;
+  'use strict';
+
+  var ROUTES = {
+    home:        { src: 'overview.html',     title: 'Home' },
+    cards:       { src: 'index.html',        title: 'Operations Center' },
+    play:        { src: 'engine.html',       title: 'Engine & Play' },
+    globe:       { src: 'globe.html',        title: 'Globe' },
+    tactical:    { src: 'tactical.html',     title: 'Tactical Operations' },
+    builder:     { src: 'card-builder.html', title: 'Card Builder' },
+    diagnostics: { src: 'diagnostics.html',  title: 'Diagnostics' }
+  };
+  var SPLIT_KEY = 'gw-shell-split';
+  var stage = document.getElementById('stage');
+  var panes = {};          // route -> { el, frame, path }
+  var current = null;
+  var lastGameState = null;
+  var globeReady = false;
+
+  function isFile() { return location.protocol === 'file:' || !location.origin || location.origin === 'null'; }
+  function postTarget() { return isFile() ? '*' : location.origin; }
+  function originOk(e) { return isFile() ? (e.origin === 'null' || e.origin === 'file://') : e.origin === location.origin; }
+  function wide() { return window.matchMedia('(min-width: 821px)').matches; }
+
+  function paneFor(route) {
+    if (panes[route]) return panes[route];
+    var el = document.createElement('section');
+    el.className = 'sh-pane';
+    el.dataset.route = route;
+    el.innerHTML = '<div class="sh-loading">Loading ' + ROUTES[route].title + '…</div>';
+    var frame = document.createElement('iframe');
+    frame.title = ROUTES[route].title;
+    frame.name = 'gw-pane-' + route;
+    frame.addEventListener('load', function () {
+      el.classList.add('loaded');
+      sendTheme(frame);
+    });
+    el.appendChild(frame);
+    stage.appendChild(el);
+    panes[route] = { el: el, frame: frame, path: ROUTES[route].src };
+    frame.src = ROUTES[route].src;
+    return panes[route];
   }
-  put('stat-cards', cards.length);
-  put('stat-actors', actorCount);
-  put('stat-edges', edges);
-  put('lede-cards', cards.length);
-  put('ops-card-count', cards.length);
-  put('foot-cards', cards.length);
-  put('foot-actors', actorCount);
+
+  function parseHash() {
+    var h = decodeURIComponent(location.hash.replace(/^#/, ''));
+    if (/^cards\/[^/]+\.html?$/i.test(h)) return { route: 'cards', path: h };
+    if (ROUTES[h]) return { route: h, path: null };
+    return { route: 'home', path: null };
+  }
+
+  function show(route, path) {
+    if (!ROUTES[route]) route = 'home';
+    var p = paneFor(route);
+    if (path && p.path !== path) { p.path = path; p.frame.src = path; }
+    if (isSplit() && (route === 'play' || route === 'globe')) { paneFor('play'); paneFor('globe'); }
+    current = route;
+    document.body.dataset.route = route;
+    for (var r in panes) panes[r].el.classList.toggle('active', r === route);
+    document.querySelectorAll('[data-go]').forEach(function (b) {
+      if (b.dataset.go === route) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
+    document.title = ROUTES[route].title + ' · Global Wargame';
+    var pop = (p.path || ROUTES[route].src) + '?standalone=1';
+    document.getElementById('btn-pop').href = pop;
+    document.getElementById('sheet-pop').href = pop;
+    if (route === 'globe') pushToGlobe();
+  }
+
+  function go(route, path) {
+    var hash = '#' + (path && route === 'cards' && path !== 'index.html' ? path : route);
+    closeSheet();
+    // Re-selecting the Cards or Builder tab returns it to its start page.
+    if (route === current && !path && panes[route] && panes[route].path !== ROUTES[route].src &&
+        (route === 'cards' || route === 'builder')) {
+      path = ROUTES[route].src;
+    }
+    if (location.hash !== hash) history.pushState(null, '', hash);
+    show(route, path);
+  }
+
+  window.addEventListener('popstate', function () { var t = parseHash(); show(t.route, t.path); });
+  window.addEventListener('hashchange', function () { var t = parseHash(); show(t.route, t.path); });
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-go]');
+    if (!b) return;
+    e.preventDefault();
+    go(b.dataset.go);
+  });
+
+  // ---------- Split view ----------
+  function isSplit() { return document.body.classList.contains('split') && wide(); }
+  function setSplit(on) {
+    document.body.classList.toggle('split', !!on);
+    document.getElementById('btn-split').setAttribute('aria-pressed', on ? 'true' : 'false');
+    try { localStorage.setItem(SPLIT_KEY, on ? '1' : '0'); } catch (_) {}
+    if (on) { paneFor('play'); paneFor('globe'); pushToGlobe(); }
+  }
+  document.getElementById('btn-split').addEventListener('click', function () {
+    setSplit(!document.body.classList.contains('split'));
+  });
+  try { if (localStorage.getItem(SPLIT_KEY) === '1') document.body.classList.add('split'); } catch (_) {}
+  document.getElementById('btn-split').setAttribute('aria-pressed', document.body.classList.contains('split') ? 'true' : 'false');
+
+  // ---------- More sheet ----------
+  var sheet = document.getElementById('sheet');
+  var backdrop = document.getElementById('sheet-backdrop');
+  function openSheet() { sheet.hidden = false; backdrop.hidden = false; }
+  function closeSheet() { sheet.hidden = true; backdrop.hidden = true; }
+  document.getElementById('btn-more').addEventListener('click', function () { sheet.hidden ? openSheet() : closeSheet(); });
+  backdrop.addEventListener('click', closeSheet);
+  document.getElementById('sheet-pop').addEventListener('click', closeSheet);
+  document.getElementById('sheet-theme').addEventListener('click', function () { window.GWTheme.toggle(); closeSheet(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+
+  // ---------- Theme sync ----------
+  function sendTheme(frame) {
+    try { frame.contentWindow.postMessage({ type: 'gw-theme', theme: window.GWTheme.get() }, postTarget()); } catch (_) {}
+  }
+  document.addEventListener('themechange', function () {
+    for (var r in panes) sendTheme(panes[r].frame);
+  });
+
+  // ---------- Engine <-> globe relay ----------
+  function pushToGlobe() {
+    var g = panes.globe;
+    if (!g || !lastGameState) return;
+    try { g.frame.contentWindow.postMessage({ type: 'wargame-state', payload: lastGameState }, postTarget()); } catch (_) {}
+  }
+  function routeOfSource(src) {
+    for (var r in panes) if (panes[r].frame.contentWindow === src) return r;
+    return null;
+  }
+
+  window.addEventListener('message', function (e) {
+    if (!originOk(e)) return;
+    var from = routeOfSource(e.source);
+    if (!from) return;
+    var d = e.data;
+    if (!d || typeof d !== 'object') return;
+
+    switch (d.type) {
+      case 'gw-nav':
+        if (ROUTES[d.route]) go(d.route, d.path || null);
+        break;
+      case 'gw-loc':
+        if (panes[from] && d.path) panes[from].path = d.path;
+        if (from === current && from === 'cards') {
+          var h = '#' + (d.path && d.path !== 'index.html' ? d.path : 'cards');
+          if (location.hash !== h) history.replaceState(null, '', h);
+          var pop = (d.path || 'index.html') + '?standalone=1';
+          document.getElementById('btn-pop').href = pop;
+          document.getElementById('sheet-pop').href = pop;
+        }
+        break;
+      case 'wargame-state-out':
+        if (from === 'play') { lastGameState = d.payload; if (globeReady) pushToGlobe(); }
+        break;
+      case 'wargame-globe-ready':
+        if (from === 'globe') { globeReady = true; pushToGlobe(); }
+        break;
+      case 'wargame-open-globe':
+        if (wide()) { setSplit(true); show('play'); }
+        else go('globe');
+        break;
+      case 'wargame-close':
+        go('home');
+        break;
+    }
+  });
+
+  window.addEventListener('resize', function () { if (current) show(current); });
+
+  // ---------- Start ----------
+  var start = parseHash();
+  if (!location.hash) history.replaceState(null, '', '#home');
+  show(start.route, start.path);
 })();
 </script>
 </body>

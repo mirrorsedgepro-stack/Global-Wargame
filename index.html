@@ -306,6 +306,46 @@
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); }
   ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+  /* ---------- Phones: collapsible filters, swipeable chip rows ---------- */
+  .filter-more { display: flex; flex-direction: column; gap: 14px; }
+  .filter-toggle { display: none; }
+  @media (max-width: 700px) {
+    .wrapper { padding: 14px 12px 32px; }
+    header { padding-bottom: 12px; margin-bottom: 12px; gap: 10px; align-items: flex-start; }
+    header h1 { font-size: 19px; letter-spacing: 1px; }
+    header .subtitle { letter-spacing: 1.5px; font-size: 9px; }
+    .header-action { padding: 8px 12px !important; }
+    .filters {
+      padding: 10px; gap: 10px; margin-bottom: 14px;
+      position: sticky; top: 0; z-index: 20;
+      box-shadow: 0 6px 16px rgba(0,0,0,.06);
+    }
+    .filter-row { flex-wrap: nowrap; gap: 8px; }
+    .filters > .filter-row:first-child .filter-label { display: none; }
+    .search-box { min-width: 0; padding: 10px 12px; font-size: 16px; }
+    .clear-btn { display: none; }
+    .filters.open .clear-btn { display: inline-flex; }
+    .filter-toggle {
+      display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+      padding: 10px 12px; background: var(--bg2); border: 1px solid var(--border);
+      color: var(--text2); font-family: inherit; font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; cursor: pointer;
+    }
+    .filter-toggle[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+    .ft-count { background: var(--accent); color: var(--on-accent, #fff); border-radius: 999px; padding: 1px 6px; font-size: 10px; letter-spacing: 0; }
+    .filter-more { display: none; gap: 10px; max-height: 60vh; overflow-y: auto; }
+    .filters.open .filter-more { display: flex; }
+    .filter-more .filter-row { flex-direction: column; align-items: stretch; gap: 6px; }
+    .filter-more .filter-label { min-width: 0; }
+    .filter-more .filter-row > div {
+      flex-wrap: nowrap !important; overflow-x: auto; padding-bottom: 4px;
+      scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    .filter-more .filter-row > div::-webkit-scrollbar { display: none; }
+    .chip { flex-shrink: 0; padding: 8px 12px; }
+    .grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .card-tile { padding: 14px; }
+  }
 </style>
 </head>
 <body>
@@ -333,7 +373,10 @@
       <span class="filter-label">Search</span>
       <input type="text" class="search-box" id="search" placeholder="Title, ID, summary, actor...">
       <button class="clear-btn" id="clear-all">Clear all</button>
+      <button class="filter-toggle" id="filter-toggle" type="button" aria-expanded="false" aria-controls="filter-more">Filters <span class="ft-count" id="ft-count" hidden></span></button>
     </div>
+
+    <div class="filter-more" id="filter-more">
 
     <div class="filter-row">
       <span class="filter-label">Country</span>
@@ -353,6 +396,7 @@
     <div class="filter-row">
       <span class="filter-label">Risk</span>
       <div id="risk-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
     </div>
   </div>
 
@@ -658,6 +702,25 @@ function render() {
 }
 
 render();
+// ---------- Phones: filter drawer ----------
+(function () {
+  var box = document.querySelector('.filters');
+  var btn = document.getElementById('filter-toggle');
+  var more = document.getElementById('filter-more');
+  var badge = document.getElementById('ft-count');
+  if (!box || !btn || !more) return;
+  btn.addEventListener('click', function () {
+    var open = !box.classList.contains('open');
+    box.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  function count() {
+    var n = more.querySelectorAll('.chip.active').length;
+    badge.textContent = n; badge.hidden = n === 0;
+  }
+  new MutationObserver(count).observe(more, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  count();
+})();
 </script>
 </body>
 </html>
