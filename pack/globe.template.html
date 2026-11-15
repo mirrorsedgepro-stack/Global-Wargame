@@ -1240,9 +1240,9 @@ function renderPlayerList() {
       const w = (v / DIME_MAX * 100).toFixed(0);
       return `<div class="pdc ${delta}" title="${key}=${v.toFixed(1)}"><div class="fill" style="width:${w}%; background:${DIME_COLORS[key]}"></div></div>`;
     };
-    return `<div class="player-card ${cls}" data-country="${p.name}">
+    return `<div class="player-card ${cls}" data-country="${escapeHtmlGlobe(p.name)}">
       <div class="pc-head">
-        <div class="pc-name"><span class="pc-dot" style="background:${p.color}"></span>${p.name}</div>
+        <div class="pc-name"><span class="pc-dot" style="background:${safeColor(p.color)}"></span>${escapeHtmlGlobe(p.name)}</div>
         <div class="pc-fav">${fav}</div>
       </div>
       <div class="pc-dime">${bar('D')}${bar('I')}${bar('M')}${bar('E')}</div>
@@ -1271,9 +1271,9 @@ function renderEventList() {
       }).filter(Boolean).join('');
       if (chips) dimeChips = `<div class="ev-dime">${chips}</div>`;
     }
-    return `<div class="event ${ev.outcome || ''}">
-      <div class="ev-head"><span>${ev.player || ''} → ${ev.target || '—'}</span><span class="ev-turn">T${ev.turn || '-'}</span></div>
-      <div class="ev-body">${ev.text || ''}</div>
+    return `<div class="event ${safeOutcome(ev.outcome)}">
+      <div class="ev-head"><span>${escapeHtmlGlobe(ev.player || '')} → ${escapeHtmlGlobe(ev.target || '—')}</span><span class="ev-turn">T${escapeHtmlGlobe(ev.turn == null ? '-' : ev.turn)}</span></div>
+      <div class="ev-body">${escapeHtmlGlobe(ev.text || '')}</div>
       ${dimeChips}
     </div>`;
   }).join('');
@@ -1297,14 +1297,15 @@ function renderHeaderStats() {
   document.getElementById('stat-risk').textContent = risk + '%';
   const tempo = state.events.length ? Math.min(100, state.events.length * 10) + '%' : '—';
   document.getElementById('stat-tempo').textContent = tempo;
-  document.getElementById('stat-turn').textContent = state.game ? `${state.game.turn || 1}/${state.game.totalTurns || 5}` : '—';
+  const perPlayer = state.game.turnsPerPlayer || state.game.totalTurns || 30;
+  document.getElementById('stat-turn').textContent = state.game ? `${state.game.turn || 1}/${perPlayer}` : '—';
 }
 function renderBanner() {
   const be = document.getElementById('banner-event');
   const bp = document.getElementById('banner-player');
   if (state.game && state.players.length) {
     const p = state.players[state.game.currentIdx] || state.players[0];
-    bp.innerHTML = `<span class="dot" style="background:${p.color}"></span><span>${p.name}</span>`;
+    bp.innerHTML = `<span class="dot" style="background:${safeColor(p.color)}"></span><span>${escapeHtmlGlobe(p.name)}</span>`;
     const last = state.events[state.events.length-1];
     be.textContent = last ? `Last: ${last.player} → ${last.target || '—'} [${(last.outcome||'').toUpperCase()}]` : 'Awaiting move…';
   } else {
@@ -1401,7 +1402,8 @@ function ingestState(payload) {
     state.game = {
       currentIdx: payload.game.currentIdx || 0,
       turn: payload.game.turn || 1,
-      totalTurns: payload.game.totalTurns || 5,
+      totalTurns: payload.game.totalTurns || 30,
+      turnsPerPlayer: payload.game.turnsPerPlayer || 30,
       log: payload.game.log || [],
     };
   }
@@ -1416,7 +1418,7 @@ function ingestState(payload) {
     const ev = {
       player: attacker,
       target: target,
-      turn: (state.game && state.game.turn) || 0,
+      turn: e.turn != null ? e.turn : ((state.game && state.game.turn) || 0),
       outcome: outcome,
       cardId:    e.cardId || null,
       cardTitle: e.cardTitle || null,
@@ -1475,7 +1477,22 @@ function autoPan(lat, lon) {
   requestAnimationFrame(step);
 }
 
+function postTarget() {
+  // file:// pages report origin "null"; '*' is the only target that delivers.
+  if (location.protocol === 'file:' || !location.origin || location.origin === 'null') return '*';
+  return location.origin;
+}
+function acceptMessage(e) {
+  if (location.protocol === 'file:' || !location.origin || location.origin === 'null') {
+    return e.origin === 'null' || e.origin === 'file://';
+  }
+  return e.origin === location.origin;
+}
 window.addEventListener('message', function(e) {
+  if (!acceptMessage(e)) return;
+  const fromOpener = window.opener && e.source === window.opener;
+  const fromParent = window.parent && window.parent !== window && e.source === window.parent;
+  if (!fromOpener && !fromParent) return;
   const d = e.data;
   if (!d || typeof d !== 'object') return;
   if (d.type === 'wargame-state') {
@@ -1492,12 +1509,12 @@ let _readyConfirmed = false;
 function announceReady() {
   try {
     if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: 'wargame-globe-ready' }, '*');
+      window.opener.postMessage({ type: 'wargame-globe-ready' }, postTarget());
     }
     // Also bubble up via parent for the odd case the globe is hosted inside
     // an iframe rather than a popup.
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'wargame-globe-ready' }, '*');
+      window.parent.postMessage({ type: 'wargame-globe-ready' }, postTarget());
     }
   } catch (e) {}
 }
@@ -2237,6 +2254,16 @@ function renderSocialFeed() {
 function escapeHtmlGlobe(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function safeColor(c) {
+  const s = String(c == null ? '' : c);
+  if (/^#[0-9a-fA-F]{3,8}$/.test(s)) return s;
+  if (/^[a-zA-Z]{1,20}$/.test(s)) return s;
+  return '#2563EB';
+}
+function safeOutcome(o) {
+  const s = String(o || '').toLowerCase();
+  return s === 'best' || s === 'partial' || s === 'backfire' ? s : '';
 }
 
 // ---------------------------------------------------------------------------

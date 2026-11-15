@@ -47,7 +47,7 @@ And by **DIME domain**:
 - **M** — Military
 - **E** — Economic
 
-Each card also carries a **risk score** (LOW / MEDIUM / HIGH / CRITICAL) and one or more primary actor labels. The current catalogue has 47 distinct labels. That count includes organizations (EU, NATO, IEA) and short aliases (`US`, `UK`) as well as country names.
+Each card also carries a **risk score** (LOW / MEDIUM / HIGH / CRITICAL) and one or more primary actor labels. `pack/build.py` rewrites the shorthand labels `US`, `UK`, `United Arab Emirates`, and `European Union` to the canonical names (`United States`, `United Kingdom`, `UAE`, `EU`) so each actor has one ledger. Organizations (EU, NATO, IEA) stay as their own actors.
 
 ## Adjudication model
 
@@ -58,23 +58,26 @@ dime_vector = RISK_MAG[risk] × PHASE_MULT[phase]
              + keyword-weighted secondary domain boosts
 
 net = attacker_base
-    + phase_bonus
     + actor_posture_bonus
-    - defender_value
+    - defender_base
+    - counter_increment
+    - domain_increment
     - defender_posture_bonus
-    ± variance(hash(ids + turn))
+    ± variance(hash(ids + turn + play))
 ```
+
+Phase is applied once, by `PHASE_MULT`. A second flat bonus (Conflict +4, Crisis +8) used to sit on top of that multiplier; the breakdown now shows the defender as separate rows that add up to NET. Posture is the player who played the card, and the player who played the counter. The variance seed includes the turn and a per-play counter, because the world object's turn number never advances.
 
 **Outcome bands:**
 - **BEST** (net ≥ 30) — Full effect applied to world state.
 - **PARTIAL** (0 ≤ net < 30) — 40% effect, significant friction.
 - **BACKFIRE** (net < 0) — Effect inverts against the attacker, 60% damage to actor.
 
-The variance term is seeded by the card ids plus turn number, so replays are reproducible. Keyword boosts read the card title and the action summary stored in `engine-data.js`.
+The same card on a later play gets a new variance. Replaying a game from the same sequence of turns and plays is reproducible. Keyword boosts read the card title and the action summary stored in `engine-data.js`.
 
 ## World state and favourability
 
-Actor baselines in the engine cover the same 47 labels, tracked across:
+Actor baselines in the engine are the canonical `COUNTRY_BASES` entries, tracked across:
 - DIME averages (baseline posture, 0–100 each)
 - GDP (indexed, 100 = baseline)
 - Stockpiles (rare earths, semiconductors, energy, grain)
@@ -88,7 +91,7 @@ The global commodity market tracks Rare Earths, Semiconductors, Energy, and Grai
 - **Expansive** plays (build, expand, partnership, deal) push prices down and raise the **actor's** stockpile.
 - BACKFIRE flips the direction.
 
-At end of turn the market settles: net exporters of a commodity gain GDP when its price rises, net importers feel the squeeze. Stockpiles drift slowly toward equilibrium and the Global Risk Index decays toward its 30 baseline.
+At the end of each round (after every player has acted) the market settles: net exporters of a commodity gain GDP when its price rises, net importers feel the squeeze. Stockpiles drift slowly toward equilibrium and the Global Risk Index decays toward its 30 baseline.
 
 ## Game flow
 
@@ -100,7 +103,7 @@ At end of turn the market settles: net exporters of a commodity gain GDP when it
    - If any opponent holds a canonical counter, a prompt lets them pick one to play or pass.
    - Engine rolls adjudication.
    - World state updates, market and stockpiles shift, globe shows attack arcs and DIME deltas.
-5. After 5 turns each, highest favourability wins.
+5. After 30 turns each (`TURNS_PER_PLAYER` in `engine.html`), highest favourability wins. The market settles once per round, after every player has acted, so a four-player game does not drift faster than a two-player game.
 
 ## Globe View
 
@@ -123,7 +126,7 @@ If the popup is blocked, allow popups for the page and click ◉ Open Globe View
 4. Drop the file into the `cards/` folder. Name it `PHASE-DOMAIN-NN-slug.html`.
 5. From the repository root, run `python3 pack/build.py` so the engine and Operations Center pick it up.
 
-Counter links are the `<a class="counter-tag" href="...">` tags in the card's Counter-Cards section. The build records the target card id (the `PHASE-DOMAIN-NN` prefix of the href). Two labels that point at the same card produce two edges. A tag with no card href is not an edge.
+Counter links are the `<a class="counter-tag" href="...">` tags in the card's Counter-Cards section. The build records the target card id (the `PHASE-DOMAIN-NN` prefix of the href) and keeps one edge when two labels point at the same card. A tag with no card href is not an edge. The build also rewrites every card's prev/next list to the full deck.
 
 ## Rebuilding sidecars
 

@@ -18,6 +18,11 @@ the current globe.html has no extractable coastline JSON. Card regeneration
 still runs.
 
 The adjudication formula lives in engine.html and is not touched here.
+
+Actor shorthand on a card (US, UK, United Arab Emirates, European Union) is
+rewritten to the canonical COUNTRY_BASES name, in the HTML and in
+engine-data.js. Each card's prev/next list is rewritten to every card file,
+in alphabetical order, so the original pages reach the later cards.
 """
 
 from __future__ import annotations
@@ -43,6 +48,26 @@ BORDERS_JSON = PACK / "borders.json"
 # Keep 200 so keyword scoring, which reads card.summary, stays stable.
 SUMMARY_LIMIT = 200
 
+# Canonical actor names are the keys of COUNTRY_BASES in engine.html.
+# Aliases are rewritten at build time so the engine never grows a second
+# ledger for "US" beside "United States".
+ACTOR_ALIASES = {
+    "US": "United States",
+    "UK": "United Kingdom",
+    "United Arab Emirates": "UAE",
+    "European Union": "EU",
+}
+CANONICAL_ACTORS = {
+    "United States", "China", "Russia", "Japan", "India", "Australia",
+    "United Kingdom", "South Korea", "Taiwan", "Philippines", "Singapore",
+    "Malaysia", "Canada", "New Zealand", "DPRK", "France", "ASEAN Member",
+    "IEA", "Israel", "Iran", "Saudi Arabia", "UAE", "Turkey", "Egypt",
+    "Qatar", "Nigeria", "South Africa", "Ethiopia", "Kenya", "Morocco",
+    "DRC", "Pakistan", "Bangladesh", "Sri Lanka", "Afghanistan",
+    "Kazakhstan", "Uzbekistan", "Germany", "Poland", "Ukraine", "Italy",
+    "Spain", "Netherlands", "Norway", "EU", "NATO", "Belgium",
+}
+
 CARD_NAME = re.compile(r"^([A-Z]+)-([A-Z])-(\d+)-.+\.html$")
 CARD_ID = re.compile(r"^([A-Z]+-[A-Z]-\d+)")
 PHASES = {"COM", "CON", "CRI"}
@@ -53,6 +78,8 @@ CONTINENTS_OPEN = '<script id="continents-data" type="application/json">'
 BORDERS_OPEN = '<script id="borders-data" type="application/json">'
 CONTINENTS_MARK = "__CONTINENTS_JSON__"
 BORDERS_MARK = "__BORDERS_JSON__"
+ACTOR_PILL = re.compile(r'(<span class="actor-pill"[^>]*>)(.*?)(</span>)', re.S)
+NAV_LIST = re.compile(r"var CARDS = \[.*?\];", re.S)
 
 
 def collapse(fragment: str) -> str:
@@ -67,16 +94,21 @@ def summarise(action: str) -> str:
     return action
 
 
+def canonical_actor(name: str) -> str:
+    return ACTOR_ALIASES.get(name, name)
+
+
 def counter_ids(raw: str) -> list[str]:
     """Card ids linked from the Counter-Cards block, in document order.
 
-    Two differently worded tags may point at the same card. Both edges are
-    kept, matching the graph the engine already ships.
+    A repeated target is dropped. isCounter only tests membership, and a
+    second chip for the same card is the duplicate-edge bug.
     """
     block = re.search(r'<div class="counters">(.*?)</div>', raw, re.S)
     if not block:
         return []
     ids: list[str] = []
+    seen: set[str] = set()
     for tag in re.findall(r"<a\b[^>]*>", block.group(1), re.S):
         if not re.search(r'class="[^"]*\bcounter-tag\b', tag):
             continue
@@ -85,9 +117,42 @@ def counter_ids(raw: str) -> list[str]:
             continue
         base = href.group(1).split("?", 1)[0].split("#", 1)[0].rstrip("/").split("/")[-1]
         match = CARD_ID.match(base)
-        if match:
-            ids.append(match.group(1))
+        if not match or match.group(1) in seen:
+            continue
+        seen.add(match.group(1))
+        ids.append(match.group(1))
     return ids
+
+
+def rewrite_actor_pills(raw: str) -> tuple[str, list[tuple[str, str]]]:
+    """Replace shorthand actor pills with canonical names. Idempotent."""
+    changed: list[tuple[str, str]] = []
+
+    def repl(match: re.Match) -> str:
+        text = collapse(match.group(2))
+        canon = canonical_actor(text)
+        if canon == text:
+            return match.group(0)
+        changed.append((text, canon))
+        return match.group(1) + html.escape(canon) + match.group(3)
+
+    return ACTOR_PILL.sub(repl, raw), changed
+
+
+def rewrite_navigation(names: list[str]) -> list[str]:
+    """Point every card's prev/next list at the full alphabetical deck."""
+    literal = "var CARDS = " + json.dumps(names, ensure_ascii=True) + ";"
+    warnings: list[str] = []
+    for name in names:
+        path = CARDS_DIR / name
+        raw = path.read_text(encoding="utf-8")
+        if not NAV_LIST.search(raw):
+            warnings.append(f"{name}: no prev/next CARDS list to update")
+            continue
+        updated = NAV_LIST.sub(lambda _match: literal, raw, count=1)
+        if updated != raw:
+            path.write_text(updated, encoding="utf-8")
+    return warnings
 
 
 def parse_card(path: Path) -> dict:
@@ -103,7 +168,7 @@ def parse_card(path: Path) -> dict:
     title = collapse(title_m.group(1)) if title_m else card_id
 
     actors = [
-        collapse(piece)
+        canonical_actor(collapse(piece))
         for piece in re.findall(r'class="actor-pill"[^>]*>(.*?)</span>', raw, re.S)
     ]
     actors = [actor for actor in actors if actor]
@@ -170,6 +235,9 @@ def load_cards() -> tuple[list[dict], dict[str, list[str]], list[str]]:
             warnings.append(f"{card['id']}: missing title")
         if not card["actors"]:
             warnings.append(f"{card['id']}: no actors")
+        for actor in card["actors"]:
+            if actor not in CANONICAL_ACTORS:
+                warnings.append(f"{card['id']}: actor {actor!r} is not a canonical country")
         if not card["risk"]:
             warnings.append(f"{card['id']}: no risk")
         if not card["summary"]:
@@ -281,18 +349,22 @@ def main() -> int:
     if not CARDS_DIR.is_dir():
         print(f"no card directory at {CARDS_DIR}", file=sys.stderr)
         return 1
+    names = sorted(
+        path.name for path in CARDS_DIR.glob("*.html") if CARD_NAME.match(path.name)
+    )
+    for name in names:
+        path = CARDS_DIR / name
+        raw = path.read_text(encoding="utf-8")
+        updated, changed = rewrite_actor_pills(raw)
+        if changed:
+            path.write_text(updated, encoding="utf-8")
+            print(f"normalised actors in {name}: " + ", ".join(f"{old} -> {new}" for old, new in changed))
+    nav_warnings = rewrite_navigation(names)
     cards, counters, warnings = load_cards()
+    warnings = nav_warnings + warnings
     write_engine_data(cards, counters)
     edges = sum(len(targets) for targets in counters.values())
-    duplicate_edges = sum(
-        len(targets) - len(set(targets)) for targets in counters.values()
-    )
     print(f"engine-data.js: {len(cards)} cards, {edges} counter edges")
-    if duplicate_edges:
-        print(
-            f"  {duplicate_edges} repeated edges kept "
-            "(two counter labels on the card point at one target)"
-        )
     globe_ok = ensure_globe_sources()
     if globe_ok:
         write_globe()
