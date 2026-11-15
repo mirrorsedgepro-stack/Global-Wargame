@@ -291,6 +291,7 @@
   }
   .card-tooltip .ct-counters .none { border-style: solid; color: var(--text3); }
 </style>
+<link rel="stylesheet" href="mobile.css" data-gw-mobile="1">
 </head>
 <body>
 <header>
@@ -382,7 +383,7 @@
       <div class="score-summary" id="gt-scores"></div>
     </div>
 
-    <h3>Your Hand — Click a card to play it</h3>
+    <h3>Your Hand — <span class="hand-hint-mouse">hover a card to read it, click to play</span><span class="hand-hint-touch">tap Details to read a card, tap the card to play</span></h3>
     <div class="hand" id="gt-hand"></div>
 
     <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
@@ -405,7 +406,7 @@
 <!-- ========== RULES ========== -->
 <section id="tab-rules" class="tab">
   <h2>Game Rules &amp; Reference</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:16px;">
+  <div class="rules-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:16px;">
 
     <div class="country-card">
       <h4 style="color:var(--accent)">Overview</h4>
@@ -1050,7 +1051,14 @@ function closeEngine() {
 }
 document.getElementById('btn-close').addEventListener('click', closeEngine);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeEngine();
+  if (e.key !== 'Escape') return;
+  const modal = document.getElementById('counter-modal');
+  if (modal && !modal.hidden) return;
+  const sheet = document.getElementById('globe-sheet');
+  if (sheet && !sheet.hidden) { closeGlobeSheet(); return; }
+  const tip = document.getElementById('card-tooltip');
+  if (tip && tip.classList.contains('pinned')) return;
+  closeEngine();
 });
 
 // ===========================================================================
@@ -1064,7 +1072,73 @@ let globeWin = null;
 let globeReady = false;
 let lastBroadcast = null;
 
+function prefersInPageGlobe() {
+  return window.matchMedia('(max-width: 860px)').matches;
+}
+
+function closeGlobeSheet() {
+  const sheet = document.getElementById('globe-sheet');
+  if (!sheet) return;
+  sheet.hidden = true;
+  document.body.style.overflow = '';
+}
+
+function ensureGlobeSheet() {
+  let sheet = document.getElementById('globe-sheet');
+  if (sheet) return sheet;
+  sheet = document.createElement('div');
+  sheet.id = 'globe-sheet';
+  sheet.className = 'globe-sheet';
+  sheet.hidden = true;
+  sheet.innerHTML =
+    '<div class="globe-sheet-bar">' +
+      '<span class="gs-title">Globe View</span>' +
+      '<button type="button" class="btn" id="globe-sheet-tab">Open in tab</button>' +
+      '<button type="button" class="btn primary" id="globe-sheet-close">Close</button>' +
+    '</div>' +
+    '<iframe id="globe-frame" title="Globe View" src="about:blank"></iframe>';
+  document.body.appendChild(sheet);
+  document.getElementById('globe-sheet-close').addEventListener('click', closeGlobeSheet);
+  document.getElementById('globe-sheet-tab').addEventListener('click', () => {
+    // window.open without feature string keeps window.opener, so the
+    // globe's ready handshake and postMessage sync still work in a tab.
+    const w = window.open('globe.html');
+    if (!w) return;
+    globeWin = w;
+    globeReady = false;
+    closeGlobeSheet();
+    setTimeout(broadcastState, 400);
+    setTimeout(broadcastState, 1200);
+  });
+  const frame = document.getElementById('globe-frame');
+  frame.addEventListener('load', () => {
+    const src = frame.getAttribute('src') || '';
+    if (src && src !== 'about:blank') globeWin = frame.contentWindow;
+  });
+  return sheet;
+}
+
+function openGlobeInPage() {
+  const sheet = ensureGlobeSheet();
+  const frame = document.getElementById('globe-frame');
+  sheet.hidden = false;
+  document.body.style.overflow = 'hidden';
+  if (!frame.getAttribute('src') || frame.getAttribute('src') === 'about:blank') {
+    frame.src = 'globe.html';
+  }
+  try { globeWin = frame.contentWindow; } catch (e) { globeWin = null; }
+  globeReady = false;
+  const closeBtn = document.getElementById('globe-sheet-close');
+  if (closeBtn) closeBtn.focus();
+}
+
 function openGlobeDirect() {
+  // Phones block or mishandle sized popups. An in-page iframe keeps the
+  // same postMessage channel (the globe already announces to window.parent).
+  if (prefersInPageGlobe()) {
+    openGlobeInPage();
+    return;
+  }
   if (globeWin && !globeWin.closed) { try { globeWin.focus(); } catch(e){}; return; }
   globeWin = window.open('globe.html', 'wargame-globe',
     'width=1400,height=900,menubar=no,toolbar=no,location=no,status=no');
@@ -1422,6 +1496,7 @@ function renderGame() {
             <span>${DOMAIN_LABEL[c.domain]}</span>
             <span>${c.risk || '—'}</span>
           </div>
+          <button type="button" class="hc-details">Details</button>
         </div>
       `;
     }).join('');
@@ -1434,10 +1509,22 @@ function renderGame() {
         hideCardTooltip();
         playCard(parseInt(el.dataset.idx, 10));
       });
+      const detailsBtn = el.querySelector('.hc-details');
+      if (detailsBtn) {
+        detailsBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          showCardDetails(card);
+        });
+      }
       // Hover-to-peek: full-card dialog tracks cursor while hovering
       el.addEventListener('mouseenter', (ev) => showCardTooltip(card, ev));
       el.addEventListener('mousemove',  (ev) => positionCardTooltip(ev));
-      el.addEventListener('mouseleave', hideCardTooltip);
+      el.addEventListener('mouseleave', () => {
+        const tip = _ctRoot();
+        if (tip && tip.classList.contains('pinned')) return;
+        hideCardTooltip();
+      });
     });
   }
 
@@ -1862,7 +1949,7 @@ function buildCardTooltipHtml(card) {
 function showCardTooltip(card, ev) {
   if (!card) return;
   const tip = _ctRoot();
-  if (!tip) return;
+  if (!tip || tip.classList.contains('pinned')) return;
   tip.innerHTML = buildCardTooltipHtml(card);
   tip.hidden = false;
   positionCardTooltip(ev);
@@ -1873,13 +1960,35 @@ function showCardTooltip(card, ev) {
 function hideCardTooltip() {
   const tip = _ctRoot();
   if (!tip) return;
-  tip.classList.remove('show');
+  tip.classList.remove('show', 'pinned');
   tip.hidden = true;
+  tip.style.right = '';
+  tip.style.bottom = '';
+  tip.style.width = '';
+}
+
+// Touch has no hover. Pin the same tooltip as a sheet with a Close button.
+function showCardDetails(card) {
+  if (!card) return;
+  const tip = _ctRoot();
+  if (!tip) return;
+  tip.innerHTML = buildCardTooltipHtml(card) + '<button type="button" class="ct-close">Close</button>';
+  tip.hidden = false;
+  tip.classList.add('show', 'pinned');
+  const closeBtn = tip.querySelector('.ct-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      hideCardTooltip();
+    });
+    closeBtn.focus();
+  }
 }
 
 function positionCardTooltip(ev) {
   const tip = _ctRoot();
-  if (!tip || tip.hidden) return;
+  if (!tip || tip.hidden || tip.classList.contains('pinned')) return;
   const w  = tip.offsetWidth  || 360;
   const h  = tip.offsetHeight || 320;
   const vw = window.innerWidth;

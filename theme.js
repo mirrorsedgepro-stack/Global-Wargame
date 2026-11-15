@@ -40,6 +40,56 @@
     } else { fn(); }
   }
 
+  // Phone layout stylesheet. Pages may already link mobile.css after their
+  // own <style>; otherwise we append it once the document styles exist so
+  // it wins the cascade. Card previews use the top window's width.
+  function mobileHref() {
+    var scripts = document.getElementsByTagName('script');
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].getAttribute('src') || '';
+      if (/theme\.js(\?.*)?$/.test(src)) return src.replace(/theme\.js(\?.*)?$/, 'mobile.css$1');
+    }
+    return 'mobile.css';
+  }
+  function ensureMobileCss() {
+    var link = document.querySelector('link[data-gw-mobile]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = mobileHref();
+      link.setAttribute('data-gw-mobile', '1');
+    }
+    document.head.appendChild(link);
+  }
+  function syncNarrow() {
+    var narrow = window.matchMedia('(max-width: 860px)').matches;
+    if (window.parent !== window) {
+      try { narrow = window.parent.matchMedia('(max-width: 860px)').matches; } catch (_) {}
+    }
+    document.documentElement.classList.toggle('gw-narrow', narrow);
+  }
+  function ensureViewport() {
+    var vp = document.querySelector('meta[name="viewport"]');
+    if (!vp) {
+      vp = document.createElement('meta');
+      vp.setAttribute('name', 'viewport');
+      vp.setAttribute('content', 'width=device-width, initial-scale=1');
+      document.head.appendChild(vp);
+    }
+    if (vp.getAttribute('content').indexOf('viewport-fit') === -1) {
+      vp.setAttribute('content', vp.getAttribute('content') + ', viewport-fit=cover');
+    }
+  }
+  function ensureIcon() {
+    if (document.querySelector('link[rel="icon"]')) return;
+    var icon = document.createElement('link');
+    icon.rel = 'icon';
+    icon.href = 'data:image/svg+xml,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="#2563EB"/></svg>'
+    );
+    document.head.appendChild(icon);
+  }
+
   function ensureBackdrop() {
     if (document.querySelector('.gw-bg')) return;
     var bg = document.createElement('div');
@@ -74,6 +124,11 @@
   }
 
   ready(function () {
+    ensureViewport();
+    ensureIcon();
+    ensureMobileCss();
+    syncNarrow();
+    window.addEventListener('resize', syncNarrow);
     ensureBackdrop();
 
     var existing = document.querySelector('[data-theme-toggle]');

@@ -307,6 +307,7 @@
   ::-webkit-scrollbar-thumb { background: var(--border); }
   ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 </style>
+<link rel="stylesheet" href="mobile.css" data-gw-mobile="1">
 </head>
 <body>
 <div class="wrapper">
@@ -328,31 +329,34 @@
     .header-action:hover { border-color: var(--accent) !important; color: var(--accent) !important; }
   </style>
 
-  <div class="filters">
-    <div class="filter-row">
+  <div class="filters" id="filters">
+    <div class="filter-row filter-search">
       <span class="filter-label">Search</span>
-      <input type="text" class="search-box" id="search" placeholder="Title, ID, summary, actor...">
+      <input type="text" class="search-box" id="search" placeholder="Title, ID, summary, actor..." enterkeyhint="search">
+      <button type="button" class="filters-toggle" id="filters-toggle" aria-expanded="false" aria-controls="filter-panels">Filters</button>
       <button class="clear-btn" id="clear-all">Clear all</button>
     </div>
 
-    <div class="filter-row">
-      <span class="filter-label">Country</span>
-      <div id="country-chips" style="display:flex;flex-wrap:wrap;gap:6px;flex:1;"></div>
-    </div>
+    <div class="filter-panels" id="filter-panels">
+      <div class="filter-row">
+        <span class="filter-label">Country</span>
+        <div id="country-chips" style="display:flex;flex-wrap:wrap;gap:6px;flex:1;"></div>
+      </div>
 
-    <div class="filter-row">
-      <span class="filter-label">Phase</span>
-      <div id="phase-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-    </div>
+      <div class="filter-row">
+        <span class="filter-label">Phase</span>
+        <div id="phase-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
 
-    <div class="filter-row">
-      <span class="filter-label">Domain</span>
-      <div id="domain-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-    </div>
+      <div class="filter-row">
+        <span class="filter-label">Domain</span>
+        <div id="domain-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
 
-    <div class="filter-row">
-      <span class="filter-label">Risk</span>
-      <div id="risk-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      <div class="filter-row">
+        <span class="filter-label">Risk</span>
+        <div id="risk-chips" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
     </div>
   </div>
 
@@ -433,6 +437,27 @@ document.getElementById('search').addEventListener('input', (e) => {
   state.search = e.target.value.toLowerCase().trim();
   render();
 });
+
+// On a phone the country/phase/domain/risk chips collapse so the
+// catalogue is on screen. Desktop keeps every row visible via CSS.
+const filtersEl = document.getElementById('filters');
+const filtersToggle = document.getElementById('filters-toggle');
+function activeFilterCount() {
+  return state.countries.size + state.phases.size + state.domains.size + state.risks.size;
+}
+function updateFilterToggle() {
+  if (!filtersToggle || !filtersEl) return;
+  const n = activeFilterCount();
+  const open = filtersEl.classList.contains('is-open');
+  filtersToggle.textContent = (open ? 'Hide filters' : 'Filters') + (n ? ' (' + n + ')' : '');
+  filtersToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+if (filtersToggle) {
+  filtersToggle.addEventListener('click', () => {
+    filtersEl.classList.toggle('is-open');
+    updateFilterToggle();
+  });
+}
 
 // Clear all
 document.getElementById('clear-all').addEventListener('click', () => {
@@ -614,6 +639,7 @@ function matches(card) {
 }
 
 function render() {
+  updateFilterToggle();
   const grid = document.getElementById('grid');
   const filtered = CARDS.filter(matches);
   document.getElementById('visible-count').textContent = filtered.length;

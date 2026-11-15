@@ -175,6 +175,7 @@
   :root[data-theme="light"] .globe-box { border: 1px solid var(--border-strong); border-top: 0; }
   :root[data-theme="light"] .unit-card, :root[data-theme="light"] .contact-card, :root[data-theme="light"] .log-entry, :root[data-theme="light"] .modal-card { border-color: var(--border-strong); box-shadow: 0 1px 2px rgba(15,30,70,0.04); }
 </style>
+<link rel="stylesheet" href="mobile.css" data-gw-mobile="1">
 </head>
 <body>
 <div class="layout">
@@ -197,6 +198,10 @@
       </div>
       <div class="hover-readout" id="hover-readout"></div>
       <div class="toast" id="toast"></div>
+      <div class="zoom-ctl">
+        <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      </div>
       <div class="ctl-bar" id="ctl-bar"></div>
     </div>
     <aside class="rail">
@@ -505,6 +510,9 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+if (window.ResizeObserver) {
+  new ResizeObserver(resize).observe(document.getElementById('globe-box'));
+}
 
 // ================================================================
 // PALETTE + DRAWING (ported from globe.html)
@@ -1102,6 +1110,76 @@ window.addEventListener('mouseup', e => {
 boxEl.addEventListener('wheel', e => {
   e.preventDefault();
   state.zoom = Math.max(0.6, Math.min(2.4, state.zoom - e.deltaY*0.001));
+}, { passive: false });
+
+function tacticalUiTarget(el) {
+  return !!(el && el.closest && el.closest('.zoom-ctl, .ctl-bar, button, a, input, select'));
+}
+function touchSpan(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+let pinchStartDist = 0;
+let pinchStartZoom = 1;
+document.getElementById('zoom-in').addEventListener('click', () => {
+  state.zoom = Math.min(2.4, state.zoom + 0.18);
+});
+document.getElementById('zoom-out').addEventListener('click', () => {
+  state.zoom = Math.max(0.6, state.zoom - 0.18);
+});
+
+boxEl.addEventListener('touchstart', e => {
+  if (tacticalUiTarget(e.target)) return;
+  if (e.touches.length === 2) {
+    state.isDragging = false;
+    pinchStartDist = touchSpan(e.touches);
+    pinchStartZoom = state.zoom;
+    e.preventDefault();
+    return;
+  }
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0];
+  state.isDragging = true;
+  state.dragStartX = t.clientX; state.dragStartY = t.clientY;
+  state.dragStartRotY = state.userRotY; state.dragStartRotX = state.userRotX;
+  state.dragMoved = false;
+  boxEl.classList.add('dragging');
+  e.preventDefault();
+}, { passive: false });
+boxEl.addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && pinchStartDist > 0) {
+    e.preventDefault();
+    state.zoom = Math.max(0.6, Math.min(2.4, pinchStartZoom * (touchSpan(e.touches) / pinchStartDist)));
+    return;
+  }
+  if (!state.isDragging || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  const dx = t.clientX - state.dragStartX, dy = t.clientY - state.dragStartY;
+  if (Math.abs(dx) + Math.abs(dy) > 6) state.dragMoved = true;
+  state.userRotY = state.dragStartRotY + dx * 0.005;
+  state.userRotX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, state.dragStartRotX + dy * 0.005));
+  e.preventDefault();
+}, { passive: false });
+boxEl.addEventListener('touchend', e => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    pinchStartDist = 0;
+    state.isDragging = true;
+    state.dragMoved = true;
+    state.dragStartX = t.clientX; state.dragStartY = t.clientY;
+    state.dragStartRotY = state.userRotY; state.dragStartRotX = state.userRotX;
+    return;
+  }
+  if (e.touches.length > 1) return;
+  const wasDrag = state.dragMoved;
+  const t = e.changedTouches[0];
+  state.isDragging = false;
+  pinchStartDist = 0;
+  boxEl.classList.remove('dragging');
+  if (!wasDrag && t && !tacticalUiTarget(e.target)) {
+    handleGlobeClick({ clientX: t.clientX, clientY: t.clientY });
+  }
 }, { passive: false });
 
 function handleGlobeClick(e) {

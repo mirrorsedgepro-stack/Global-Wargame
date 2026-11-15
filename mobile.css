@@ -1,0 +1,519 @@
+/* ==================================================================
+   Global Wargame — phone and small-tablet layout
+   ------------------------------------------------------------------
+   Loaded after each page's own styles (see theme.js). Every rule is
+   scoped to narrow viewports or to html.gw-narrow, so a desktop
+   window keeps the existing layout and visual style.
+
+   html.gw-narrow is set by theme.js from the top window's width, so
+   a card preview iframe on a desktop does not pick up phone rules
+   just because the iframe itself is narrow.
+   ================================================================== */
+
+@media (max-width: 860px) {
+  html { -webkit-text-size-adjust: 100%; }
+
+  body > header,
+  header.top,
+  header.topbar,
+  header.page-head,
+  .wrapper > header {
+    padding-right: 60px;
+    gap: 10px;
+  }
+
+  .theme-toggle {
+    width: 44px;
+    height: 44px;
+    top: 8px;
+    right: 8px;
+  }
+
+  /* Inputs at 16px so mobile browsers don't zoom the page on focus. */
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  button,
+  .btn,
+  .btn-close,
+  a.header-action,
+  button.header-action,
+  .clear-btn,
+  .nav-back,
+  .nav-arrow {
+    min-height: 44px;
+  }
+
+  a.header-action,
+  button.header-action {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px !important;
+  }
+
+  a, button, .chip, .hand-card, .counter-option, .card-tile, .unit-card {
+    touch-action: manipulation;
+  }
+}
+
+/* ---------- Home ---------- */
+@media (max-width: 640px) {
+  .hero {
+    padding: 28px 16px 22px;
+    padding-right: 58px;
+  }
+  .hero h1 { font-size: 32px; letter-spacing: 0.5px; }
+  .hero .kicker { letter-spacing: 2px; }
+  .wrap { padding: 16px 14px 72px; }
+  .about ul li { flex-wrap: wrap; }
+  .about ul li span.v { text-align: left; }
+}
+
+/* ---------- Operations Center ---------- */
+@media (max-width: 860px) {
+  .filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font: 700 12px inherit;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .filter-panels { display: none; }
+  .filters.is-open .filter-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .filter-search { align-items: stretch; }
+  .filter-search .filter-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .filter-search .search-box {
+    flex: 1 1 140px;
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .clear-btn {
+    margin-left: 0;
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 12px;
+  }
+  .filters .chip {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  .filters { padding: 12px; }
+  .grid { grid-template-columns: 1fr; }
+  .wrapper { padding: 16px 12px 48px; }
+  header h1 { font-size: 22px; letter-spacing: 0.5px; }
+}
+
+@media (min-width: 861px) {
+  .filters-toggle { display: none; }
+  .filter-panels { display: contents; }
+}
+
+/* Defaults — the narrow-viewport block below turns these on. */
+.hand-hint-touch { display: none; }
+.hc-details { display: none; }
+.card-tooltip .ct-close {
+  display: none;
+  margin-top: 12px;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border2, var(--border));
+  background: var(--bg3, var(--panel));
+  color: var(--text);
+  font: 700 12px inherit;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* ---------- Engine ---------- */
+@media (max-width: 860px) {
+  nav.tabs { flex-wrap: wrap; }
+  nav.tabs button {
+    flex: 1 1 auto;
+    min-height: 44px;
+    padding: 12px 10px;
+    letter-spacing: 1px;
+  }
+  #btn-open-globe {
+    flex: 1 1 100% !important;
+    width: auto;
+    margin: 8px !important;
+    min-height: 44px !important;
+  }
+  main { padding: 14px 12px 32px; }
+  .adj-grid { grid-template-columns: 1fr; gap: 12px; }
+  .adj-vs { padding: 0; font-size: 16px; }
+  .setup-slot {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "pn remove"
+      "name name"
+      "country country";
+    gap: 8px;
+  }
+  .setup-slot .pn { grid-area: pn; align-self: center; }
+  .setup-slot input { grid-area: name; min-width: 0; }
+  .setup-slot select { grid-area: country; min-width: 0; }
+  .setup-slot .btn-remove {
+    grid-area: remove;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    font-size: 18px;
+  }
+  .setup-actions { flex-wrap: wrap; }
+  .setup-actions .btn { flex: 1 1 auto; }
+  .game-top { grid-template-columns: 1fr; }
+  .hand { grid-template-columns: 1fr; }
+  .hc-details {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 10px;
+    min-height: 44px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font: 700 12px inherit;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .hand-hint-mouse { display: none; }
+  .hand-hint-touch { display: inline; }
+  .countries-grid { grid-template-columns: 1fr; }
+  .rules-grid { grid-template-columns: 1fr !important; }
+  .counter-modal { align-items: flex-end; padding: 0; }
+  .counter-modal-inner {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+  }
+  .counter-modal-actions { flex-direction: column; }
+  .counter-modal-actions .btn { width: 100%; min-height: 48px; }
+  .counter-option .co-play {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card-tooltip.pinned {
+    pointer-events: auto;
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    max-width: none;
+    max-height: min(72vh, 560px);
+  }
+  .card-tooltip.pinned .ct-close { display: block; }
+}
+
+/* In-page globe (phones). Hidden until the engine opens it. */
+.globe-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+.globe-sheet[hidden] { display: none !important; }
+.globe-sheet-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex: 0 0 auto;
+}
+.globe-sheet-bar .gs-title {
+  flex: 1;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+.globe-sheet-bar .btn { min-height: 44px; padding: 10px 12px; }
+.globe-sheet iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--bg);
+}
+
+.zoom-ctl { display: none; }
+
+/* ---------- Globe + tactical stage ---------- */
+@media (max-width: 860px) {
+  .layout,
+  main.stage,
+  .globe-box,
+  aside.rail,
+  header.top,
+  footer.bottom,
+  .turn-banner {
+    min-width: 0;
+    max-width: 100%;
+  }
+  header.top {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    padding-right: 60px;
+    gap: 8px;
+  }
+  header.top h1 {
+    font-size: 12px;
+    letter-spacing: 1px;
+    line-height: 1.35;
+  }
+  header.top a.back {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .hdr-stats { gap: 12px; flex-wrap: wrap; }
+  .hdr-stat .val { font-size: 16px; }
+  .turn-banner {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    align-items: flex-start;
+  }
+  .turn-banner #banner-event {
+    flex: 1 1 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  footer.bottom {
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 6px 8px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .commodity { flex: 0 0 auto; padding: 4px 8px; }
+  .globe-box { touch-action: none; }
+  .zoom-ctl {
+    display: flex;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    flex-direction: column;
+    gap: 8px;
+    z-index: 4;
+  }
+  .zoom-ctl button {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong, var(--border));
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    color: var(--text);
+    font: 600 22px var(--font-ui, inherit);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .rail-tabs .rt-btn { min-height: 44px; }
+  .player-card { min-height: 44px; }
+  .uc-controls { flex-wrap: wrap; }
+  .uc-controls button {
+    min-height: 44px;
+    flex: 1 1 30%;
+    font-size: 11px;
+    padding: 8px 6px;
+  }
+  .ctl-bar { left: 8px; right: 8px; bottom: 8px; padding: 8px; }
+  .ctl-bar button { min-height: 44px; padding: 10px 12px; }
+  .modal-card { padding: 20px 16px; }
+  .modal-card input[type="text"],
+  .modal-card select { font-size: 16px; min-height: 44px; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions button { min-height: 44px; }
+}
+
+@media (max-width: 860px) and (orientation: portrait) {
+  main.stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(240px, 1.25fr) minmax(160px, 0.85fr);
+  }
+  aside.rail {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    min-height: 0;
+  }
+  .globe-overlay { max-width: 68%; }
+  .dime-legend { display: none; }
+  .sun-pos { top: auto; bottom: 56px; right: 62px; text-align: right; }
+  .rotate-hint { left: 10px; bottom: 8px; max-width: 58%; }
+  .hdr-stats { width: 100%; justify-content: space-between; }
+}
+
+@media (max-width: 860px) and (orientation: landscape) {
+  header.top { flex-wrap: nowrap; padding-top: 6px; padding-bottom: 6px; }
+  .turn-banner { padding-top: 4px; padding-bottom: 4px; }
+  footer.bottom { padding-top: 2px; padding-bottom: 2px; }
+  main.stage {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 34vw);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  aside.rail { border-top: 0; border-left: 1px solid var(--border); }
+  .ctl-bar { bottom: 6px; }
+}
+
+@media (max-height: 520px) {
+  .modal-card { padding: 14px 14px; max-height: 94vh; }
+  .modal-card h2 { font-size: 16px; }
+  .modal-card p.sub { margin-bottom: 8px; }
+}
+
+/* ---------- Diagnostics ---------- */
+@media (max-width: 800px) {
+  .split-2 { grid-template-columns: 1fr !important; gap: 16px !important; }
+  .actions .btn { min-height: 44px; }
+  table.counts { display: block; overflow-x: auto; }
+}
+
+/* ---------- Card pages (direct visits and phone previews) ---------- */
+html.gw-narrow .wrapper { padding: 16px 12px 36px; }
+html.gw-narrow .banner,
+html.gw-narrow .card > .banner {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 14px;
+  gap: 12px;
+}
+html.gw-narrow .banner-left { min-width: 0 !important; flex: 1 1 auto; }
+html.gw-narrow .banner-right,
+html.gw-narrow .risk-gauge { text-align: left; min-width: 0; }
+html.gw-narrow .card-title {
+  font-size: 22px;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+html.gw-narrow .nav-row {
+  /* Leave the floating theme toggle a clear corner. */
+  padding-right: 52px;
+  align-items: center;
+}
+html.gw-narrow .nav-back,
+html.gw-narrow .nav-arrow {
+  min-height: 44px;
+  padding: 10px 12px;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+html.gw-narrow a.counter-tag {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+html.gw-narrow .outcomes { grid-template-columns: 1fr !important; }
+html.gw-narrow .body,
+html.gw-narrow .actors-row,
+html.gw-narrow .footer { padding-left: 14px; padding-right: 14px; }
+html.gw-narrow .footer { align-items: flex-start; }
+html.gw-narrow .card-id-display { letter-spacing: 1px; }
+html.gw-narrow pre,
+html.gw-narrow .strategy-box,
+html.gw-narrow .historical-box { overflow-wrap: anywhere; }
+
+/* ---------- Card builder ---------- */
+@media (max-width: 1000px) {
+  .app { padding: 12px; height: auto; }
+  header.topbar a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .row { flex-direction: column; }
+  iframe.preview { min-height: 72vh; height: 72vh; }
+  .filename-display {
+    flex: 1 1 100%;
+    margin-right: 0;
+    overflow-wrap: anywhere;
+  }
+  button.btn { min-height: 44px; }
+  #country-chips { max-height: 280px !important; }
+  #country-chips button {
+    min-height: 44px !important;
+    padding: 10px 14px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* Touch tablets in landscape (about 1024px) keep the desktop columns,
+   but controls still need a finger-sized hit area. Mouse users at the
+   same width keep the original control sizes. */
+@media (pointer: coarse) and (min-width: 861px) and (max-width: 1100px) {
+  .theme-toggle { width: 44px; height: 44px; top: 8px; right: 8px; }
+  body > header,
+  header.top,
+  header.topbar,
+  header.page-head {
+    padding-right: 60px;
+  }
+  .nav-row { padding-right: 52px; }
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  button,
+  .btn,
+  a.btn,
+  a.header-action,
+  button.header-action,
+  .nav-back,
+  .nav-arrow,
+  .clear-btn,
+  .filters .chip,
+  .rt-btn,
+  a.back,
+  a.counter-tag,
+  #country-chips button {
+    min-height: 44px;
+  }
+  a.header-action,
+  button.header-action,
+  a.counter-tag {
+    display: inline-flex;
+    align-items: center;
+  }
+}

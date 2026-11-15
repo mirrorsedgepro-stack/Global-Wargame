@@ -360,6 +360,7 @@
     box-shadow: 0 0 0 1px var(--warn), 0 1px 4px rgba(15,30,70,0.06);
   }
 </style>
+<link rel="stylesheet" href="mobile.css" data-gw-mobile="1">
 </head>
 <body>
 <div class="layout">
@@ -397,7 +398,11 @@
         </div>
       </div>
       <div class="sun-pos" id="sun-pos"></div>
-      <div class="rotate-hint">DRAG TO ROTATE · SCROLL TO ZOOM · CLICK A MARKER</div>
+      <div class="rotate-hint">DRAG TO ROTATE · PINCH OR SCROLL TO ZOOM · TAP A MARKER</div>
+      <div class="zoom-ctl">
+        <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      </div>
       <div class="dime-legend">
         <div class="it"><span class="bar" style="background:var(--d-D)"></span>D</div>
         <div class="it"><span class="bar" style="background:var(--d-I)"></span>I</div>
@@ -693,6 +698,9 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+if (window.ResizeObserver) {
+  new ResizeObserver(resize).observe(document.getElementById('globe-box'));
+}
 
 function getRotation() { return { rx: state.userRotX, ry: state.rotY + state.userRotY }; }
 
@@ -1150,24 +1158,91 @@ boxEl.addEventListener('wheel', e => {
   state.zoom = Math.max(0.6, Math.min(2.2, state.zoom - e.deltaY * 0.001));
 }, { passive: false });
 
-// Touch
+function globeUiTarget(el) {
+  return !!(el && el.closest && el.closest('.zoom-ctl, #inspector, button, a'));
+}
+function touchSpan(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+let pinchStartDist = 0;
+let pinchStartZoom = 1;
+function nudgeZoom(delta) {
+  state.zoom = Math.max(0.6, Math.min(2.2, state.zoom + delta));
+}
+document.getElementById('zoom-in').addEventListener('click', () => nudgeZoom(0.18));
+document.getElementById('zoom-out').addEventListener('click', () => nudgeZoom(-0.18));
+
+function pickCountryAt(clientX, clientY) {
+  const rect = boxEl.getBoundingClientRect();
+  const cx = clientX - rect.left, cy = clientY - rect.top;
+  let hit = null, bestD = 28;
+  for (const name in state.markerScreenPos) {
+    const pos = state.markerScreenPos[name];
+    if (pos.z < 0) continue;
+    const d = Math.hypot(pos.x - cx, pos.y - cy);
+    if (d < bestD) { bestD = d; hit = name; }
+  }
+  if (hit) selectCountry(hit);
+  else { state.selected = null; renderInspector(); renderPlayerList(); }
+}
+
+// Touch: one finger rotates, two fingers pinch-zoom, a tap selects a marker.
 boxEl.addEventListener('touchstart', e => {
+  if (globeUiTarget(e.target)) return;
+  state.autoRotate = false;
+  if (e.touches.length === 2) {
+    state.isDragging = false;
+    pinchStartDist = touchSpan(e.touches);
+    pinchStartZoom = state.zoom;
+    e.preventDefault();
+    return;
+  }
   if (e.touches.length !== 1) return;
   const t = e.touches[0];
-  state.isDragging = true; state.autoRotate = false;
+  state.isDragging = true;
+  state.dragMoved = false;
   state.dragStartX = t.clientX; state.dragStartY = t.clientY;
   state.dragStartRotY = state.userRotY; state.dragStartRotX = state.userRotX;
-});
-boxEl.addEventListener('touchmove', e => {
-  if (!state.isDragging || e.touches.length !== 1) return;
-  const t = e.touches[0];
-  state.userRotY = state.dragStartRotY + (t.clientX - state.dragStartX) * 0.005;
-  state.userRotX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, state.dragStartRotX + (t.clientY - state.dragStartY) * 0.005));
+  boxEl.classList.add('dragging');
   e.preventDefault();
 }, { passive: false });
-boxEl.addEventListener('touchend', () => {
-  if (state.isDragging) { state.isDragging = false; setTimeout(() => { state.autoRotate = true; }, 4000); }
-});
+boxEl.addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && pinchStartDist > 0) {
+    e.preventDefault();
+    const d = touchSpan(e.touches);
+    state.zoom = Math.max(0.6, Math.min(2.2, pinchStartZoom * (d / pinchStartDist)));
+    return;
+  }
+  if (!state.isDragging || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  const dx = t.clientX - state.dragStartX;
+  const dy = t.clientY - state.dragStartY;
+  if (Math.abs(dx) + Math.abs(dy) > 6) state.dragMoved = true;
+  state.userRotY = state.dragStartRotY + dx * 0.005;
+  state.userRotX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, state.dragStartRotX + dy * 0.005));
+  e.preventDefault();
+}, { passive: false });
+boxEl.addEventListener('touchend', e => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    pinchStartDist = 0;
+    state.isDragging = true;
+    state.dragMoved = true;
+    state.dragStartX = t.clientX; state.dragStartY = t.clientY;
+    state.dragStartRotY = state.userRotY; state.dragStartRotX = state.userRotX;
+    return;
+  }
+  if (e.touches.length > 1) return;
+  const wasDrag = state.dragMoved;
+  const t = e.changedTouches[0];
+  state.isDragging = false;
+  pinchStartDist = 0;
+  boxEl.classList.remove('dragging');
+  setTimeout(() => { state.autoRotate = true; }, 4000);
+  if (!wasDrag && t && !globeUiTarget(e.target)) pickCountryAt(t.clientX, t.clientY);
+}, { passive: false });
 
 // ================================================================
 // SELECTION + INSPECTOR + RAIL
