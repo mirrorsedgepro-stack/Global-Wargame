@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Global Wargame · Indo-Pacific 2030-2036</title>
+<title>Global Wargame · 2030–2036</title>
 <link rel="stylesheet" href="theme.css">
 <script src="theme.js"></script>
 <style>
@@ -104,18 +104,18 @@
   <p class="lede">
     A tabletop wargame engine for DIME-based strategic competition across
     the Indo-Pacific, Middle East, Africa, South &amp; Central Asia, and
-    Europe with Ukraine. 147 action cards, a deterministic adjudicator,
+    Europe with Ukraine. <span id="lede-cards">—</span> action cards, a deterministic adjudicator,
     47-actor world model, hot-seat multiplayer, and a live 3D globe with
     real GSHHS coastlines, political borders and sun-accurate lighting.
     Pure HTML/CSS/JS — no server, no network, no install.
   </p>
 
   <div class="stat-grid">
-    <div class="stat"><span class="val">147</span><span class="lbl">Cards</span></div>
-    <div class="stat"><span class="val">47</span><span class="lbl">Actor Countries</span></div>
+    <div class="stat"><span class="val" id="stat-cards">—</span><span class="lbl">Cards</span></div>
+    <div class="stat"><span class="val" id="stat-actors">—</span><span class="lbl">Actors</span></div>
     <div class="stat"><span class="val">5</span><span class="lbl">Regions</span></div>
     <div class="stat"><span class="val">4</span><span class="lbl">DIME Domains</span></div>
-    <div class="stat"><span class="val">169</span><span class="lbl">Counter Edges</span></div>
+    <div class="stat"><span class="val" id="stat-edges">—</span><span class="lbl">Counter Edges</span></div>
   </div>
 </section>
 
@@ -127,7 +127,7 @@
     <div class="tile-kicker">Catalogue</div>
     <div class="tile-title">Operations Center</div>
     <div class="tile-desc">
-      Browse all 72 action cards with filters by phase, domain, actor
+      Browse all <span id="ops-card-count">—</span> action cards with filters by phase, domain, actor
       and risk. Full-text search. Card-level detail view.
     </div>
   </a>
@@ -229,16 +229,47 @@
       <li><span class="k">Lighting</span>    <span class="v">Real subsolar point (by date)</span></li>
       <li><span class="k">Arcs</span>        <span class="v">Great-circle slerp (80 steps)</span></li>
       <li><span class="k">Sync</span>        <span class="v">postMessage (engine ⇆ globe)</span></li>
-      <li><span class="k">Bundle size</span> <span class="v">~3.6 MB single file</span></li>
+      <li><span class="k">Catalogue</span>   <span class="v">engine-data.js · pack/build.py</span></li>
     </ul>
   </section>
 </div>
 
 <footer class="page-foot">
-  <div><span class="live"></span>GWO · v2 · Indo-Pacific 2030-2036 — offline engine</div>
-  <div>DIME × COM / CON / CRI · 18 Countries · 72 Cards</div>
+  <div><span class="live"></span>GWO · v2 · 2030–2036 — offline engine</div>
+  <div>DIME × COM / CON / CRI · <span id="foot-actors">—</span> Actors · <span id="foot-cards">—</span> Cards</div>
 </footer>
 
 </div>
+
+<script src="engine-data.js"></script>
+<script>
+// Counts come from engine-data.js so the landing page tracks the catalogue.
+(function () {
+  var data = window.__ENGINE_DATA;
+  if (!data || !Array.isArray(data.cards)) return;
+  var cards = data.cards;
+  var edges = 0;
+  var counters = data.counters || {};
+  Object.keys(counters).forEach(function (id) {
+    edges += (counters[id] || []).length;
+  });
+  var actors = {};
+  cards.forEach(function (card) {
+    (card.actors || []).forEach(function (actor) { actors[actor] = true; });
+  });
+  var actorCount = Object.keys(actors).length;
+  function put(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+  put('stat-cards', cards.length);
+  put('stat-actors', actorCount);
+  put('stat-edges', edges);
+  put('lede-cards', cards.length);
+  put('ops-card-count', cards.length);
+  put('foot-cards', cards.length);
+  put('foot-actors', actorCount);
+})();
+</script>
 </body>
 </html>

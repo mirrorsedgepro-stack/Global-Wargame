@@ -237,7 +237,8 @@
 .globe-sheet {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  /* Above the floating theme toggle (z-index 9999) so Close stays tappable. */
+  z-index: 10050;
   background: var(--bg);
   display: flex;
   flex-direction: column;
@@ -270,6 +271,7 @@
 }
 
 .zoom-ctl { display: none; }
+.hint-touch { display: none; }
 
 /* ---------- Globe + tactical stage ---------- */
 @media (max-width: 860px) {
@@ -321,6 +323,8 @@
   }
   .commodity { flex: 0 0 auto; padding: 4px 8px; }
   .globe-box { touch-action: none; }
+  .hint-mouse { display: none; }
+  .hint-touch { display: inline; }
   .zoom-ctl {
     display: flex;
     position: absolute;
